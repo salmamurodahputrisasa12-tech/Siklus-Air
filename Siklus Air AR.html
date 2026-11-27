@@ -167,7 +167,7 @@
             <div class="mb-3">
                 <label id="qr-url-label" class="block text-[11px] font-semibold text-slate-600 mb-1">Tautan WebAR (HTTPS):</label>
                 <div class="flex gap-1.5">
-                    <input id="qr-url-input" type="url" value="https://salmamurodahputrisasa12-tech.github.io/Siklus-Air/Siklus%20Air%20AR.html?ar=1" placeholder="https://salmamurodahputrisasa12-tech.github.io/Siklus-Air/Siklus%20Air%20AR.html?ar=1" class="w-full text-xs px-3 py-2 rounded-xl bg-white/90 border border-slate-200 text-slate-800 focus:outline-none focus:border-sky-500">
+                    <input id="qr-url-input" type="url" value="https://salmamurodahputrisasa12-tech.github.io/Siklus-Air/Siklus%20Air%20AR.html" placeholder="https://salmamurodahputrisasa12-tech.github.io/Siklus-Air/Siklus%20Air%20AR.html" class="w-full text-xs px-3 py-2 rounded-xl bg-white/90 border border-slate-200 text-slate-800 focus:outline-none focus:border-sky-500">
                     <button id="btn-update-qr" class="px-3 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold transition shrink-0" title="Perbarui QR">
                         <i class="fa-solid fa-rotate"></i>
                     </button>
@@ -1691,7 +1691,7 @@
             const renderQRCode = (urlStr) => {
                 qrContainer.innerHTML = '';
                 new QRCode(qrContainer, {
-                    text: urlStr || 'https://salmamurodahputrisasa12-tech.github.io/Siklus-Air/Siklus%20Air%20AR.html?ar=1',
+                    text: urlStr || 'https://salmamurodahputrisasa12-tech.github.io/Siklus-Air/Siklus%20Air%20AR.html',
                     width: 185,
                     height: 185,
                     colorDark: '#0f172a',
@@ -1700,21 +1700,11 @@
                 });
             };
 
-            const buildAutoARUrl = (rawUrl) => {
-                try {
-                    const u = new URL(rawUrl);
-                    u.searchParams.set('ar', '1');
-                    return u.toString();
-                } catch (e) {
-                    return rawUrl.includes('?') ? `${rawUrl}&ar=1` : `${rawUrl}?ar=1`;
-                }
-            };
-
             document.getElementById('btn-qr-open').addEventListener('click', () => {
-                const defaultHostedUrl = 'https://salmamurodahputrisasa12-tech.github.io/Siklus-Air/Siklus%20Air%20AR.html?ar=1';
+                const defaultHostedUrl = 'https://salmamurodahputrisasa12-tech.github.io/Siklus-Air/Siklus%20Air%20AR.html';
                 const currentHref = window.location.href;
                 const isHostedHttp = (currentHref.startsWith('http://') || currentHref.startsWith('https://')) && !currentHref.includes('localhost') && !currentHref.includes('127.0.0.1');
-                const initialUrl = isHostedHttp ? buildAutoARUrl(currentHref) : defaultHostedUrl;
+                const initialUrl = isHostedHttp ? currentHref : defaultHostedUrl;
 
                 qrInput.value = initialUrl;
                 qrWarn.classList.toggle('hidden', isHostedHttp);
@@ -1969,9 +1959,10 @@
             initThreeJS();
             renderer.setAnimationLoop(animateLoop);
 
-            // Otomatis masuk Mode AR jika dibuka melalui hasil scan QR Code (?ar=1)
+            // Otomatis langsung masuk Mode AR saat dibuka di HP / hasil scan QR Code
             const params = new URLSearchParams(window.location.search);
-            if (params.get('ar') === '1' && !state.isARMode) {
+            const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+            if ((params.get('ar') === '1' || isMobileDevice) && !state.isARMode) {
                 toggleARMode();
             }
         };
