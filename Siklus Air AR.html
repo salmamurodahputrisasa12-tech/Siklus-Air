@@ -250,53 +250,54 @@
             </div>
         </header>
 
-        <!-- TENGAH / SAMPING: Kartu Penjelasan Edukatif & Kontrol Skala AR -->
-        <div class="flex flex-col sm:flex-row items-end sm:items-center justify-between gap-2 my-auto pointer-events-none">
+        <!-- TENGAH / SAMPING: Kartu Penjelasan Edukatif -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 my-auto pointer-events-none">
 
             <!-- Kartu Penjelasan Tahapan -->
-            <div id="info-card" class="glass-panel p-3 sm:p-3.5 rounded-2xl max-w-xs sm:max-w-[330px] w-full pointer-events-auto transition-all duration-300 border-l-4 border-sky-500">
+            <div id="info-card" class="glass-panel p-2.5 sm:p-3 rounded-2xl max-w-[270px] sm:max-w-[285px] w-full pointer-events-auto transition-all duration-300 border-l-4 border-sky-500">
                 <div class="flex items-center justify-between mb-1">
                     <span id="info-badge" class="text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md bg-sky-100 text-sky-700">
                         Ikhtisar Proses
                     </span>
-                    <button id="btn-reset-cam" class="text-[11px] text-slate-500 hover:text-sky-600 font-medium flex items-center gap-1 transition">
+                    <button id="btn-reset-cam" class="text-[10px] text-slate-500 hover:text-sky-600 font-medium flex items-center gap-1 transition">
                         <i class="fa-solid fa-compress-arrows-alt"></i>
                         <span id="btn-reset-text">Reset Sudut</span>
                     </button>
                 </div>
-                <h2 id="info-title" class="text-sm sm:text-base font-bold text-slate-900 mb-1 leading-snug">Siklus Hidrologi Lengkap</h2>
-                <p id="info-desc" class="text-[11px] sm:text-xs text-slate-700 leading-relaxed mb-2">
+                <h2 id="info-title" class="text-xs sm:text-sm font-bold text-slate-900 mb-1 leading-snug">Siklus Hidrologi Lengkap</h2>
+                <p id="info-desc" class="text-[10px] sm:text-[11px] text-slate-700 leading-relaxed mb-1.5">
                     Perputaran air secara terus-menerus dari bumi ke atmosfer dan kembali lagi ke bumi melalui penguapan, pembentukan awan, hujan, hingga aliran sungai kembali ke laut.
                 </p>
                 <!-- Fakta Kunci / Proses Utama -->
-                <div class="bg-sky-50/90 border border-sky-200/80 rounded-xl p-2 flex items-start gap-1.5">
-                    <i class="fa-solid fa-lightbulb text-amber-500 text-[11px] mt-0.5"></i>
-                    <p id="info-fact" class="text-[10px] sm:text-[11px] text-sky-900 font-medium leading-snug">
+                <div class="bg-sky-50/90 border border-sky-200/80 rounded-xl p-1.5 flex items-start gap-1.5">
+                    <i class="fa-solid fa-lightbulb text-amber-500 text-[10px] mt-0.5"></i>
+                    <p id="info-fact" class="text-[10px] text-sky-900 font-medium leading-snug">
                         Sekitar 86% penguapan global berasal dari lautan, yang mendinginkan permukaan laut dan menjaga kestabilan iklim Bumi.
                     </p>
                 </div>
             </div>
+        </div>
 
-            <!-- Kontrol Tambahan Khusus Mode AR (Skala & Posisi) -->
-            <div id="ar-controls-panel" class="hidden glass-panel p-3.5 rounded-2xl pointer-events-auto flex flex-col gap-2 w-52">
-                <div class="flex items-center justify-between text-xs text-emerald-700 font-bold">
-                    <span><i class="fa-solid fa-camera mr-1.5 text-emerald-500"></i><span id="ar-cam-status">Kamera AR</span></span>
+        <!-- FOOTER BAWAH: Kontrol Skala Diorama & Navigasi 6 Tahapan Siklus Air -->
+        <footer class="pointer-events-auto flex flex-col items-center gap-2">
+            <!-- Kontrol Skala Diorama (Ditempatkan tepat di atas menu tahapan bawah) -->
+            <div id="ar-controls-panel" class="hidden glass-panel px-3.5 py-2 rounded-2xl pointer-events-auto flex flex-col gap-1 w-full max-w-md">
+                <div class="flex items-center justify-between gap-3">
+                    <div class="flex items-center text-[11px] text-emerald-700 font-bold shrink-0">
+                        <i class="fa-solid fa-camera mr-1.5 text-emerald-500"></i>
+                        <span id="ar-cam-status">Kamera AR</span>
+                    </div>
+                    <div class="flex items-center gap-2 flex-1">
+                        <span id="ar-scale-label" class="text-[11px] text-slate-600 font-semibold whitespace-nowrap">Skala Diorama</span>
+                        <input id="ar-scale-slider" type="range" min="0.4" max="1.8" step="0.1" value="1.0" class="w-full accent-emerald-500 cursor-pointer h-1.5 bg-slate-200 rounded-lg">
+                        <span id="scale-val" class="text-[11px] text-emerald-600 font-bold w-9 text-right">100%</span>
+                    </div>
                 </div>
-                <div>
-                    <label class="text-[11px] text-slate-600 font-semibold flex justify-between mb-1">
-                        <span id="ar-scale-label">Skala Diorama</span>
-                        <span id="scale-val" class="text-emerald-600 font-bold">100%</span>
-                    </label>
-                    <input id="ar-scale-slider" type="range" min="0.4" max="1.8" step="0.1" value="1.0" class="w-full accent-emerald-500 cursor-pointer h-1.5 bg-slate-200 rounded-lg">
-                </div>
-                <p id="ar-gesture-hint" class="text-[10px] text-slate-600 leading-tight">
+                <p id="ar-gesture-hint" class="text-[10px] text-slate-600 leading-tight text-center">
                     Geser 1 jari untuk memutar, cubit 2 jari untuk memperbesar/memperkecil.
                 </p>
             </div>
-        </div>
 
-        <!-- FOOTER BAWAH: Navigasi 6 Tahapan Siklus Air -->
-        <footer class="pointer-events-auto flex flex-col items-center gap-2">
             <div class="glass-panel p-1.5 rounded-2xl flex items-center gap-1.5 overflow-x-auto max-w-full no-scrollbar">
                 <button data-stage="all" class="stage-btn glass-btn active px-3.5 py-2 rounded-xl text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5">
                     <i class="fa-solid fa-arrows-spin"></i>
@@ -504,8 +505,8 @@
         const STAGE_CONFIG = {
             all: {
                 borderColor: "border-sky-500",
-                camPos: { x: -3.6, y: 12.8, z: 23.2 },
-                camTarget: { x: -1.7, y: 3.1, z: 0 }
+                camPos: { x: -4.8, y: 13.5, z: 24.5 },
+                camTarget: { x: -2.4, y: 3.1, z: 0 }
             },
             evaporation: {
                 borderColor: "border-amber-500",
@@ -579,7 +580,7 @@
             scene.fog = new THREE.FogExp2(0x0284c7, 0.011);
 
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(-3.6, 12.8, 23.2);
+            camera.position.set(-4.8, 13.5, 24.5);
 
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -620,7 +621,7 @@
             controls.maxPolarAngle = Math.PI / 2 - 0.04;
             controls.minDistance = 6;
             controls.maxDistance = 32;
-            controls.target.set(-1.7, 3.1, 0);
+            controls.target.set(-2.4, 3.1, 0);
 
             // Pencahayaan Langit Siang Cerah & Pantulan Pasir Hangat (HemisphereLight)
             const hemiLight = new THREE.HemisphereLight(0x38bdf8, 0xd97706, 0.55);
@@ -1451,7 +1452,7 @@
             if (!t || !cfg) return;
 
             const card = document.getElementById('info-card');
-            card.className = `glass-panel p-3 sm:p-3.5 rounded-2xl max-w-xs sm:max-w-[330px] w-full pointer-events-auto transition-all duration-300 border-l-4 ${cfg.borderColor}`;
+            card.className = `glass-panel p-2.5 sm:p-3 rounded-2xl max-w-[270px] sm:max-w-[285px] w-full pointer-events-auto transition-all duration-300 border-l-4 ${cfg.borderColor}`;
             document.getElementById('info-badge').textContent = t.badge;
             document.getElementById('info-title').textContent = t.title;
             document.getElementById('info-desc').textContent = t.desc;
