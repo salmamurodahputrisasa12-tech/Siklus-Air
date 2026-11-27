@@ -16,6 +16,9 @@
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
+    <!-- QRCode.js untuk Generate QR Code WebAR -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
     <!-- Three.js r128 & Addons (OrbitControls & RoomEnvironment) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -135,6 +138,59 @@
         <span id="toast-message">Pesan notifikasi</span>
     </div>
 
+    <!-- Modal QR Code & Bagikan WebAR -->
+    <div id="qr-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="glass-panel rounded-3xl max-w-sm w-full p-5 sm:p-6 relative shadow-2xl border border-white">
+            <button id="btn-close-qr" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <div class="flex items-center gap-2.5 mb-3">
+                <div class="w-9 h-9 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center">
+                    <i class="fa-solid fa-qrcode text-lg"></i>
+                </div>
+                <div>
+                    <h3 id="qr-modal-title" class="text-base font-bold text-slate-900 leading-tight">QR Code WebAR</h3>
+                    <p id="qr-modal-sub" class="text-xs text-slate-500">Scan dengan kamera HP untuk buka AR</p>
+                </div>
+            </div>
+
+            <!-- Kotak Canvas QR Code -->
+            <div class="bg-white p-4 rounded-2xl border-2 border-dashed border-sky-200 flex flex-col items-center justify-center my-3 shadow-inner">
+                <div id="qrcode-canvas" class="p-2 bg-white rounded-xl"></div>
+                <span class="mt-2 text-[11px] font-semibold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-full">
+                    Siklus Air 3D AR • WebAR
+                </span>
+            </div>
+
+            <!-- Input URL kustom (jika dibuka dari file lokal, pengguna bisa menempel URL hosting HTTPS) -->
+            <div class="mb-3">
+                <label id="qr-url-label" class="block text-[11px] font-semibold text-slate-600 mb-1">Tautan WebAR (HTTPS):</label>
+                <div class="flex gap-1.5">
+                    <input id="qr-url-input" type="url" value="https://salmamurodahputrisasa12-tech.github.io/Siklus-Air/Siklus%20Air%20AR.html" placeholder="https://salmamurodahputrisasa12-tech.github.io/Siklus-Air/Siklus%20Air%20AR.html" class="w-full text-xs px-3 py-2 rounded-xl bg-white/90 border border-slate-200 text-slate-800 focus:outline-none focus:border-sky-500">
+                    <button id="btn-update-qr" class="px-3 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold transition shrink-0" title="Perbarui QR">
+                        <i class="fa-solid fa-rotate"></i>
+                    </button>
+                </div>
+                <p id="qr-local-warning" class="hidden text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-1.5 leading-snug">
+                    <i class="fa-solid fa-triangle-exclamation mr-1"></i>Kamu sedang membuka file lokal. QR Code sudah diarahkan ke tautan GitHub Pages milikmu.
+                </p>
+            </div>
+
+            <!-- Tombol Unduh PNG & Salin Link -->
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-download-qr" class="py-2.5 px-3 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white text-xs font-semibold shadow-md shadow-sky-300/50 flex items-center justify-center gap-1.5 transition">
+                    <i class="fa-solid fa-download"></i>
+                    <span id="qr-download-text">Unduh PNG</span>
+                </button>
+                <button id="btn-copy-url" class="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold flex items-center justify-center gap-1.5 transition">
+                    <i class="fa-solid fa-copy"></i>
+                    <span id="qr-copy-text">Salin Link</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- UI OVERLAY (HUD) -->
     <div id="ui-overlay" class="fixed inset-0 z-20 pointer-events-none flex flex-col justify-between p-3 sm:p-5">
 
@@ -164,6 +220,12 @@
                 <button id="btn-ar-toggle" class="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-semibold text-xs sm:text-sm shadow-lg shadow-emerald-400/40 flex items-center gap-2 transition active:scale-95">
                     <i class="fa-solid fa-vr-cardboard"></i>
                     <span id="btn-ar-text">Masuk Mode AR</span>
+                </button>
+
+                <!-- Tombol QR Code WebAR -->
+                <button id="btn-qr-open" class="glass-btn px-3 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-1.5 font-semibold text-sky-700" title="Buat & Unduh QR Code WebAR">
+                    <i class="fa-solid fa-qrcode text-sky-600"></i>
+                    <span id="btn-qr-text" class="hidden sm:inline">QR Code</span>
                 </button>
 
                 <!-- Toggle Label 3D -->
@@ -287,6 +349,16 @@
                 toastCamStart: "Simulasi Kamera AR aktif! Gerakkan perangkat atau geser layar.",
                 toastCamDenied: "Izin kamera ditolak atau tidak tersedia. Mode AR Virtual aktif.",
                 toastARExit: "Kembali ke tampilan diorama 3D standar.",
+                qrBtn: "QR Code",
+                qrTitle: "QR Code WebAR",
+                qrSub: "Scan dengan kamera HP untuk buka AR",
+                qrUrlLabel: "Tautan WebAR (HTTPS):",
+                qrLocalWarn: "Kamu sedang membuka file lokal. Tempel tautan HTTPS (Netlify/GitHub Pages) di atas agar QR bisa di-scan di HP.",
+                qrDownload: "Unduh PNG",
+                qrCopy: "Salin Link",
+                toastQrUpdated: "QR Code berhasil diperbarui!",
+                toastQrCopied: "Tautan WebAR berhasil disalin!",
+                toastQrDownloaded: "Gambar QR Code berhasil diunduh!",
                 labels3D: {
                     sun: "Energi Matahari",
                     evap: "1. Evaporasi (Penguapan)",
@@ -358,6 +430,16 @@
                 toastCamStart: "AR Camera overlay active! Move device or drag screen.",
                 toastCamDenied: "Camera permission denied or unavailable. Virtual AR active.",
                 toastARExit: "Returned to standard 3D diorama view.",
+                qrBtn: "QR Code",
+                qrTitle: "WebAR QR Code",
+                qrSub: "Scan with phone camera to launch AR",
+                qrUrlLabel: "WebAR Link (HTTPS):",
+                qrLocalWarn: "You are viewing a local file. Paste your hosted HTTPS link (Netlify/GitHub Pages) above so phones can scan it.",
+                qrDownload: "Download PNG",
+                qrCopy: "Copy Link",
+                toastQrUpdated: "QR Code updated successfully!",
+                toastQrCopied: "WebAR link copied to clipboard!",
+                toastQrDownloaded: "QR Code image downloaded!",
                 labels3D: {
                     sun: "Solar Energy",
                     evap: "1. Evaporation",
@@ -412,6 +494,9 @@
                 }
             }
         };
+
+        I18N.id.qrLocalWarn = "Kamu sedang membuka file lokal. QR Code otomatis diarahkan ke tautan GitHub Pages milikmu.";
+        I18N.en.qrLocalWarn = "You are viewing a local file. The QR Code automatically points to your GitHub Pages link.";
 
         /**
          * KONFIGURASI KAMERA & TEMA TIAP TAHAPAN
@@ -1339,6 +1424,13 @@
             document.getElementById('ar-cam-status').textContent = t.arCamStatus;
             document.getElementById('ar-scale-label').textContent = t.arScaleLabel;
             document.getElementById('ar-gesture-hint').textContent = t.arGestureHint;
+            document.getElementById('btn-qr-text').textContent = t.qrBtn;
+            document.getElementById('qr-modal-title').textContent = t.qrTitle;
+            document.getElementById('qr-modal-sub').textContent = t.qrSub;
+            document.getElementById('qr-url-label').textContent = t.qrUrlLabel;
+            document.getElementById('qr-local-warning').innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-1"></i>${t.qrLocalWarn}`;
+            document.getElementById('qr-download-text').textContent = t.qrDownload;
+            document.getElementById('qr-copy-text').textContent = t.qrCopy;
 
             Object.keys(t.stages).forEach(stageKey => {
                 const el = document.getElementById(`stage-label-${stageKey}`);
@@ -1576,6 +1668,79 @@
 
             controls.addEventListener('start', () => {
                 state.isTransitioningCam = false;
+            });
+
+            // --- EVENT MODAL QR CODE WEBAR ---
+            const qrModal = document.getElementById('qr-modal');
+            const qrContainer = document.getElementById('qrcode-canvas');
+            const qrInput = document.getElementById('qr-url-input');
+            const qrWarn = document.getElementById('qr-local-warning');
+
+            const renderQRCode = (urlStr) => {
+                qrContainer.innerHTML = '';
+                new QRCode(qrContainer, {
+                    text: urlStr || 'https://salmamurodahputrisasa12-tech.github.io/Siklus-Air/Siklus%20Air%20AR.html',
+                    width: 185,
+                    height: 185,
+                    colorDark: '#0f172a',
+                    colorLight: '#ffffff',
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+            };
+
+            document.getElementById('btn-qr-open').addEventListener('click', () => {
+                const defaultHostedUrl = 'https://salmamurodahputrisasa12-tech.github.io/Siklus-Air/Siklus%20Air%20AR.html';
+                const currentHref = window.location.href;
+                const isHostedHttp = (currentHref.startsWith('http://') || currentHref.startsWith('https://')) && !currentHref.includes('localhost') && !currentHref.includes('127.0.0.1');
+                const initialUrl = isHostedHttp ? currentHref : defaultHostedUrl;
+
+                qrInput.value = initialUrl;
+                qrWarn.classList.toggle('hidden', isHostedHttp);
+                renderQRCode(initialUrl);
+
+                qrModal.classList.remove('hidden');
+                qrModal.classList.add('flex');
+            });
+
+            document.getElementById('btn-close-qr').addEventListener('click', () => {
+                qrModal.classList.add('hidden');
+                qrModal.classList.remove('flex');
+            });
+
+            qrModal.addEventListener('click', (e) => {
+                if (e.target === qrModal) {
+                    qrModal.classList.add('hidden');
+                    qrModal.classList.remove('flex');
+                }
+            });
+
+            document.getElementById('btn-update-qr').addEventListener('click', () => {
+                const val = qrInput.value.trim();
+                if (val) {
+                    renderQRCode(val);
+                    qrWarn.classList.add('hidden');
+                    showToast(I18N[state.lang].toastQrUpdated);
+                }
+            });
+
+            document.getElementById('btn-copy-url').addEventListener('click', () => {
+                qrInput.select();
+                qrInput.setSelectionRange(0, 99999);
+                document.execCommand('copy');
+                showToast(I18N[state.lang].toastQrCopied);
+            });
+
+            document.getElementById('btn-download-qr').addEventListener('click', () => {
+                const canvas = qrContainer.querySelector('canvas');
+                const img = qrContainer.querySelector('img');
+                const dataUrl = canvas ? canvas.toDataURL('image/png') : (img ? img.src : null);
+                if (dataUrl) {
+                    const link = document.createElement('a');
+                    link.download = 'QR-Siklus-Air-3D-AR.png';
+                    link.href = dataUrl;
+                    link.click();
+                    showToast(I18N[state.lang].toastQrDownloaded);
+                }
             });
         }
 
