@@ -1,0 +1,1787 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Simulasi AR 3D Siklus Air | 3D AR Water Cycle</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Three.js r128 & Addons (OrbitControls & RoomEnvironment) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at 75% 15%, #facc15 0%, #0284c7 35%, #0369a1 70%, #0c4a6e 100%);
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Video kamera untuk mode AR Camera Fallback */
+        #ar-camera-feed {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            z-index: 1;
+            display: none;
+        }
+
+        /* Canvas Three.js */
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 2;
+        }
+
+        /* Light & Bright Glassmorphism Utilities */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.95);
+            box-shadow: 0 10px 30px rgba(2, 132, 199, 0.16);
+        }
+
+        .glass-btn {
+            background: rgba(241, 245, 249, 0.88);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(186, 230, 253, 0.85);
+            color: #0f172a;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-btn:hover {
+            background: #ffffff;
+            border-color: #38bdf8;
+            transform: translateY(-1px);
+        }
+
+        .glass-btn.active {
+            background: linear-gradient(135deg, #0ea5e9, #0284c7);
+            border-color: #38bdf8;
+            box-shadow: 0 4px 14px rgba(14, 165, 233, 0.4);
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        /* Floating 3D HTML Labels */
+        .label-3d {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(8px);
+            color: #0f172a;
+            padding: 5px 12px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border: 1.5px solid #38bdf8;
+            pointer-events: none;
+            white-space: nowrap;
+            box-shadow: 0 4px 14px rgba(2, 132, 199, 0.22);
+            transition: opacity 0.3s ease, transform 0.1s linear;
+            z-index: 5;
+        }
+
+        .label-3d i {
+            margin-right: 5px;
+            color: #0284c7;
+        }
+
+        /* Hide scrollbars cleanly */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased">
+
+    <!-- Video Feed untuk Simulasi Kamera AR -->
+    <video id="ar-camera-feed" autoplay playsinline muted></video>
+
+    <!-- Container Utama WebGL / Three.js -->
+    <div id="canvas-container"></div>
+
+    <!-- Container Label 3D Melayang -->
+    <div id="labels-container" class="fixed inset-0 pointer-events-none z-10 overflow-hidden"></div>
+
+    <!-- Toast / Notifikasi Non-Blocking -->
+    <div id="toast-box" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 glass-panel px-4 py-2.5 rounded-full text-sm font-semibold text-sky-900 flex items-center gap-2 opacity-0 pointer-events-none transition-opacity duration-300">
+        <i class="fa-solid fa-circle-info text-sky-500"></i>
+        <span id="toast-message">Pesan notifikasi</span>
+    </div>
+
+    <!-- UI OVERLAY (HUD) -->
+    <div id="ui-overlay" class="fixed inset-0 z-20 pointer-events-none flex flex-col justify-between p-3 sm:p-5">
+
+        <!-- HEADER ATAS: Judul & Kontrol Utama -->
+        <header class="flex flex-wrap items-start justify-between gap-3 pointer-events-auto">
+            <!-- Judul Aplikasi -->
+            <div class="glass-panel px-4 py-2.5 rounded-2xl flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-400 to-cyan-500 flex items-center justify-center shadow-md shadow-sky-300/60">
+                    <i class="fa-solid fa-water text-white text-lg"></i>
+                </div>
+                <div>
+                    <h1 id="app-title" class="text-sm sm:text-base font-bold tracking-tight text-slate-900 leading-tight">Siklus Air 3D AR</h1>
+                    <p id="mode-subtitle" class="text-[11px] sm:text-xs text-sky-600 font-semibold">Simulasi Interaktif Hidrologi</p>
+                </div>
+            </div>
+
+            <!-- Kontrol Kanan Atas: Bahasa (ID | EN), AR, Label, Play/Pause, Kecepatan -->
+            <div class="flex flex-wrap items-center gap-2">
+                <!-- Toggle Bahasa ID | EN -->
+                <div class="glass-panel rounded-xl p-1 flex items-center text-xs font-semibold" role="group" aria-label="Language Switcher">
+                    <button id="lang-id" data-lang="id" class="lang-btn px-2.5 py-1.5 rounded-lg bg-sky-500 text-white shadow-sm transition">ID</button>
+                    <span class="text-slate-300 px-0.5">|</span>
+                    <button id="lang-en" data-lang="en" class="lang-btn px-2.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition">EN</button>
+                </div>
+
+                <!-- Tombol Masuk Mode AR -->
+                <button id="btn-ar-toggle" class="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-semibold text-xs sm:text-sm shadow-lg shadow-emerald-400/40 flex items-center gap-2 transition active:scale-95">
+                    <i class="fa-solid fa-vr-cardboard"></i>
+                    <span id="btn-ar-text">Masuk Mode AR</span>
+                </button>
+
+                <!-- Toggle Label 3D -->
+                <button id="btn-labels" class="glass-btn active p-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-1.5" title="Tampilkan/Sembunyikan Label 3D">
+                    <i class="fa-solid fa-tags"></i>
+                    <span id="btn-labels-text" class="hidden md:inline">Label 3D</span>
+                </button>
+
+                <!-- Play / Pause -->
+                <button id="btn-play-pause" class="glass-btn px-3 py-2.5 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-1.5" title="Jeda / Lanjutkan">
+                    <i id="icon-play-pause" class="fa-solid fa-pause text-sky-600"></i>
+                    <span id="btn-play-text" class="hidden lg:inline font-semibold text-slate-800">Jeda</span>
+                </button>
+
+                <!-- Kecepatan Simulasi -->
+                <div class="glass-panel rounded-xl p-1 flex items-center text-xs">
+                    <span id="speed-label" class="hidden xl:inline text-slate-500 px-2 font-semibold">Kecepatan:</span>
+                    <button data-speed="0.5" class="speed-btn px-2 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 font-medium transition">0.5x</button>
+                    <button data-speed="1.0" class="speed-btn px-2 py-1.5 rounded-lg bg-sky-500 text-white font-semibold shadow-sm transition">1x</button>
+                    <button data-speed="2.0" class="speed-btn px-2 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 font-medium transition">2x</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- TENGAH / SAMPING: Kartu Penjelasan Edukatif & Kontrol Skala AR -->
+        <div class="flex flex-col sm:flex-row items-end sm:items-center justify-between gap-2 my-auto pointer-events-none">
+
+            <!-- Kartu Penjelasan Tahapan -->
+            <div id="info-card" class="glass-panel p-3 sm:p-3.5 rounded-2xl max-w-xs sm:max-w-[330px] w-full pointer-events-auto transition-all duration-300 border-l-4 border-sky-500">
+                <div class="flex items-center justify-between mb-1">
+                    <span id="info-badge" class="text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md bg-sky-100 text-sky-700">
+                        Ikhtisar Proses
+                    </span>
+                    <button id="btn-reset-cam" class="text-[11px] text-slate-500 hover:text-sky-600 font-medium flex items-center gap-1 transition">
+                        <i class="fa-solid fa-compress-arrows-alt"></i>
+                        <span id="btn-reset-text">Reset Sudut</span>
+                    </button>
+                </div>
+                <h2 id="info-title" class="text-sm sm:text-base font-bold text-slate-900 mb-1 leading-snug">Siklus Hidrologi Lengkap</h2>
+                <p id="info-desc" class="text-[11px] sm:text-xs text-slate-700 leading-relaxed mb-2">
+                    Perputaran air secara terus-menerus dari bumi ke atmosfer dan kembali lagi ke bumi melalui penguapan, pembentukan awan, hujan, hingga aliran sungai kembali ke laut.
+                </p>
+                <!-- Fakta Kunci / Proses Utama -->
+                <div class="bg-sky-50/90 border border-sky-200/80 rounded-xl p-2 flex items-start gap-1.5">
+                    <i class="fa-solid fa-lightbulb text-amber-500 text-[11px] mt-0.5"></i>
+                    <p id="info-fact" class="text-[10px] sm:text-[11px] text-sky-900 font-medium leading-snug">
+                        Sekitar 86% penguapan global berasal dari lautan, yang mendinginkan permukaan laut dan menjaga kestabilan iklim Bumi.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Kontrol Tambahan Khusus Mode AR (Skala & Posisi) -->
+            <div id="ar-controls-panel" class="hidden glass-panel p-3.5 rounded-2xl pointer-events-auto flex flex-col gap-2 w-52">
+                <div class="flex items-center justify-between text-xs text-emerald-700 font-bold">
+                    <span><i class="fa-solid fa-camera mr-1.5 text-emerald-500"></i><span id="ar-cam-status">Kamera AR</span></span>
+                </div>
+                <div>
+                    <label class="text-[11px] text-slate-600 font-semibold flex justify-between mb-1">
+                        <span id="ar-scale-label">Skala Diorama</span>
+                        <span id="scale-val" class="text-emerald-600 font-bold">100%</span>
+                    </label>
+                    <input id="ar-scale-slider" type="range" min="0.4" max="1.8" step="0.1" value="1.0" class="w-full accent-emerald-500 cursor-pointer h-1.5 bg-slate-200 rounded-lg">
+                </div>
+                <p id="ar-gesture-hint" class="text-[10px] text-slate-600 leading-tight">
+                    Geser 1 jari untuk memutar, cubit 2 jari untuk memperbesar/memperkecil.
+                </p>
+            </div>
+        </div>
+
+        <!-- FOOTER BAWAH: Navigasi 6 Tahapan Siklus Air -->
+        <footer class="pointer-events-auto flex flex-col items-center gap-2">
+            <div class="glass-panel p-1.5 rounded-2xl flex items-center gap-1.5 overflow-x-auto max-w-full no-scrollbar">
+                <button data-stage="all" class="stage-btn glass-btn active px-3.5 py-2 rounded-xl text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5">
+                    <i class="fa-solid fa-arrows-spin"></i>
+                    <span id="stage-label-all">Semua Tahap</span>
+                </button>
+                <button data-stage="evaporation" class="stage-btn glass-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5">
+                    <span class="w-5 h-5 rounded-full bg-amber-100 text-amber-700 text-xs flex items-center justify-center font-bold">1</span>
+                    <span id="stage-label-evaporation">Evaporasi</span>
+                </button>
+                <button data-stage="transpiration" class="stage-btn glass-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5">
+                    <span class="w-5 h-5 rounded-full bg-teal-100 text-teal-700 text-xs flex items-center justify-center font-bold">2</span>
+                    <span id="stage-label-transpiration">Transpirasi</span>
+                </button>
+                <button data-stage="condensation" class="stage-btn glass-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5">
+                    <span class="w-5 h-5 rounded-full bg-sky-100 text-sky-700 text-xs flex items-center justify-center font-bold">3</span>
+                    <span id="stage-label-condensation">Kondensasi</span>
+                </button>
+                <button data-stage="precipitation" class="stage-btn glass-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5">
+                    <span class="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs flex items-center justify-center font-bold">4</span>
+                    <span id="stage-label-precipitation">Presipitasi</span>
+                </button>
+                <button data-stage="collection" class="stage-btn glass-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5">
+                    <span class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-xs flex items-center justify-center font-bold">5</span>
+                    <span id="stage-label-collection">Koleksi & Aliran</span>
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        /**
+         * KAMUS DWIBAHASA (INDONESIA & INGGRIS)
+         */
+        const I18N = {
+            id: {
+                appTitle: "Siklus Air 3D AR",
+                modeSubtitle3D: "Simulasi Interaktif Hidrologi",
+                modeSubtitleAR: "Mode Augmented Reality Aktif",
+                enterAR: "Masuk Mode AR",
+                exitAR: "Keluar Mode AR",
+                labelsBtn: "Label 3D",
+                pauseBtn: "Jeda",
+                playBtn: "Lanjut",
+                speedLabel: "Kecepatan:",
+                resetCam: "Reset Sudut",
+                arCamStatus: "Kamera AR Aktif",
+                arScaleLabel: "Skala Diorama",
+                arGestureHint: "Geser 1 jari untuk memutar, cubit 2 jari untuk memperbesar/memperkecil.",
+                toastWebXRStart: "Sesi WebXR AR aktif! Arahkan kamera ke permukaan datar.",
+                toastCamStart: "Simulasi Kamera AR aktif! Gerakkan perangkat atau geser layar.",
+                toastCamDenied: "Izin kamera ditolak atau tidak tersedia. Mode AR Virtual aktif.",
+                toastARExit: "Kembali ke tampilan diorama 3D standar.",
+                labels3D: {
+                    sun: "Energi Matahari",
+                    evap: "1. Evaporasi (Penguapan)",
+                    transp: "2. Transpirasi (Tumbuhan)",
+                    cond: "3. Kondensasi (Awan)",
+                    precip: "4. Presipitasi (Hujan)",
+                    coll: "5. Koleksi & Aliran Sungai"
+                },
+                stages: {
+                    all: {
+                        nav: "Semua Tahap",
+                        badge: "Ikhtisar Proses",
+                        title: "Siklus Hidrologi Lengkap",
+                        desc: "Perputaran air secara terus-menerus dari bumi ke atmosfer dan kembali lagi ke bumi melalui penguapan, pembentukan awan, hujan, hingga aliran sungai kembali ke laut.",
+                        fact: "Sekitar 86% penguapan global berasal dari lautan, yang mendinginkan permukaan laut dan menjaga kestabilan iklim Bumi."
+                    },
+                    evaporation: {
+                        nav: "Evaporasi",
+                        badge: "Tahap 1 • Penguapan Air",
+                        title: "Evaporasi (Penguapan Laut)",
+                        desc: "Panas sinar matahari memanaskan permukaan lautan, danau, dan sungai sehingga molekul air berubah wujud dari cair menjadi gas (uap air) dan naik ke atmosfer.",
+                        fact: "Semakin tinggi suhu udara dan kecepatan angin di atas laut, semakin cepat laju evaporasi berlangsung."
+                    },
+                    transpiration: {
+                        nav: "Transpirasi",
+                        badge: "Tahap 2 • Penguapan Tumbuhan",
+                        title: "Transpirasi (Evapotranspirasi)",
+                        desc: "Akar tumbuhan menyerap air dari dalam tanah lalu melepaskan uap air ke atmosfer melalui pori-pori kecil di permukaan daun yang disebut stomata.",
+                        fact: "Satu pohon ek dewasa dapat melepaskan hingga 150.000 liter uap air ke atmosfer setiap tahun melalui proses transpirasi."
+                    },
+                    condensation: {
+                        nav: "Kondensasi",
+                        badge: "Tahap 3 • Pembentukan Awan",
+                        title: "Kondensasi",
+                        desc: "Saat uap air hangat naik ke lapisan atmosfer yang lebih tinggi dan dingin, uap air mendingin dan berubah kembali menjadi titik-titik air mikroskopis yang berkumpul membentuk awan.",
+                        fact: "Titik-titik air awan menempel pada partikel mikroskopis di udara seperti debu, serbuk sari, atau garam laut (inti kondensasi)."
+                    },
+                    precipitation: {
+                        nav: "Presipitasi",
+                        badge: "Tahap 4 • Curah Hujan",
+                        title: "Presipitasi",
+                        desc: "Ketika butiran air di dalam awan saling bergabung dan menjadi terlalu berat untuk ditahan arus udara ke atas, air jatuh kembali ke bumi sebagai hujan, salju, atau hujan es.",
+                        fact: "Pegunungan memaksa udara lembap naik dan mendingin secara cepat (hujan orografis), sehingga lereng gunung sering menerima curah hujan tinggi."
+                    },
+                    collection: {
+                        nav: "Koleksi & Aliran",
+                        badge: "Tahap 5 • Aliran & Infiltrasi",
+                        title: "Koleksi, Runoff & Air Tanah",
+                        desc: "Air hujan mengalir di permukaan tanah (surface runoff) membentuk aliran sungai dari pegunungan menuju laut, sementara sebagian meresap ke dalam tanah (infiltrasi) mengisi akuifer.",
+                        fact: "Air tanah yang meresap ke lapisan batuan dalam dapat tersimpan selama ratusan hingga ribuan tahun sebelum kembali ke mata air atau laut."
+                    }
+                }
+            },
+            en: {
+                appTitle: "3D AR Water Cycle",
+                modeSubtitle3D: "Interactive Hydrologic Simulation",
+                modeSubtitleAR: "Augmented Reality Mode Active",
+                enterAR: "Enter AR Mode",
+                exitAR: "Exit AR Mode",
+                labelsBtn: "3D Labels",
+                pauseBtn: "Pause",
+                playBtn: "Resume",
+                speedLabel: "Speed:",
+                resetCam: "Reset View",
+                arCamStatus: "AR Camera Active",
+                arScaleLabel: "Diorama Scale",
+                arGestureHint: "Drag 1 finger to rotate, pinch 2 fingers to zoom in/out.",
+                toastWebXRStart: "WebXR AR session active! Point camera at a flat surface.",
+                toastCamStart: "AR Camera overlay active! Move device or drag screen.",
+                toastCamDenied: "Camera permission denied or unavailable. Virtual AR active.",
+                toastARExit: "Returned to standard 3D diorama view.",
+                labels3D: {
+                    sun: "Solar Energy",
+                    evap: "1. Evaporation",
+                    transp: "2. Transpiration",
+                    cond: "3. Condensation",
+                    precip: "4. Precipitation",
+                    coll: "5. Collection & Runoff"
+                },
+                stages: {
+                    all: {
+                        nav: "All Stages",
+                        badge: "Process Overview",
+                        title: "Complete Hydrologic Cycle",
+                        desc: "The continuous circulation of water from Earth's surface to the atmosphere and back through evaporation, cloud formation, rainfall, and river runoff into the ocean.",
+                        fact: "Roughly 86% of global evaporation occurs over the oceans, cooling sea surfaces and regulating Earth's climate."
+                    },
+                    evaporation: {
+                        nav: "Evaporation",
+                        badge: "Stage 1 • Surface Vaporization",
+                        title: "Evaporation (Ocean Heating)",
+                        desc: "Solar radiation warms the surface of oceans, lakes, and rivers, turning liquid water into invisible water vapor that rises into the atmosphere.",
+                        fact: "Higher air temperatures and stronger winds over the ocean significantly accelerate the rate of evaporation."
+                    },
+                    transpiration: {
+                        nav: "Transpiration",
+                        badge: "Stage 2 • Plant Vapor Release",
+                        title: "Transpiration (Evapotranspiration)",
+                        desc: "Plant roots absorb water from the soil and release water vapor into the atmosphere through microscopic pores on their leaves called stomata.",
+                        fact: "A single mature oak tree can transpire up to 40,000 gallons (150,000 liters) of water vapor into the air each year."
+                    },
+                    condensation: {
+                        nav: "Condensation",
+                        badge: "Stage 3 • Cloud Formation",
+                        title: "Condensation",
+                        desc: "As warm water vapor rises into higher, cooler altitudes, it cools down and condenses back into tiny liquid water droplets that cluster together to form clouds.",
+                        fact: "Cloud droplets form around microscopic airborne particles such as dust, pollen, or sea salt known as cloud condensation nuclei."
+                    },
+                    precipitation: {
+                        nav: "Precipitation",
+                        badge: "Stage 4 • Rainfall & Snow",
+                        title: "Precipitation",
+                        desc: "When water droplets inside clouds collide and grow too heavy to remain suspended by updrafts, they fall back to Earth as rain, snow, sleet, or hail.",
+                        fact: "Mountains force moist air upward to cool rapidly (orographic lift), causing mountain slopes to receive abundant precipitation."
+                    },
+                    collection: {
+                        nav: "Collection & Runoff",
+                        badge: "Stage 5 • Runoff & Infiltration",
+                        title: "Collection, Runoff & Groundwater",
+                        desc: "Rainwater flows across the land as surface runoff into rivers returning to the ocean, while part of it infiltrates into the soil to replenish groundwater aquifers.",
+                        fact: "Groundwater infiltrating deep rock layers can remain stored for centuries before discharging back into springs or the ocean."
+                    }
+                }
+            }
+        };
+
+        /**
+         * KONFIGURASI KAMERA & TEMA TIAP TAHAPAN
+         */
+        const STAGE_CONFIG = {
+            all: {
+                borderColor: "border-sky-500",
+                camPos: { x: -3.6, y: 12.8, z: 23.2 },
+                camTarget: { x: -1.7, y: 3.1, z: 0 }
+            },
+            evaporation: {
+                borderColor: "border-amber-500",
+                camPos: { x: 7.5, y: 5.8, z: 11.2 },
+                camTarget: { x: 3.2, y: 2.3, z: 0.4 }
+            },
+            transpiration: {
+                borderColor: "border-teal-500",
+                camPos: { x: 2.2, y: 5.5, z: 10.2 },
+                camTarget: { x: -1.2, y: 2.3, z: 1.0 }
+            },
+            condensation: {
+                borderColor: "border-sky-400",
+                camPos: { x: 0, y: 10.2, z: 10.8 },
+                camTarget: { x: -0.4, y: 6.4, z: 0 }
+            },
+            precipitation: {
+                borderColor: "border-indigo-500",
+                camPos: { x: -8.0, y: 7.8, z: 10.8 },
+                camTarget: { x: -3.2, y: 4.3, z: 0 }
+            },
+            collection: {
+                borderColor: "border-emerald-500",
+                camPos: { x: -1.5, y: 5.8, z: 11.5 },
+                camTarget: { x: -0.3, y: 1.1, z: 1.2 }
+            }
+        };
+
+        /**
+         * STATE APLIKASI GLOBAL
+         */
+        const state = {
+            lang: 'id',
+            currentStage: 'all',
+            isPlaying: true,
+            speed: 1.0,
+            showLabels: true,
+            isARMode: false,
+            arType: 'none',
+            cameraStream: null,
+            targetCamPos: new THREE.Vector3(0, 10.5, 17.5),
+            targetLookAt: new THREE.Vector3(0, 2.3, 0),
+            isTransitioningCam: false
+        };
+
+        // Variabel Global Three.js
+        let scene, camera, renderer, controls;
+        let dioramaGroup, sunGroup, oceanMesh, shoreFoamMesh, riverMesh, riverTexture;
+        let shadowCatcherPlane;
+        let oceanBasePositions = null;
+        let clouds = [];
+        let trees = [];
+        let evapParticles = [];
+        let transpParticles = [];
+        let rainParticles = [];
+        let splashParticles = [];
+        let riverParticles = [];
+        let groundwaterParticles = [];
+        let riverCurve;
+        let labels3D = [];
+        let sunLight;
+        let xrReticle, xrHitTestSource = null, xrHitTestSourceRequested = false;
+
+        /**
+         * 1. SETUP SCENE, CAMERA, IBL ENVIRONMENT, TONE MAPPING & SOFT SHADOWS
+         */
+        function initThreeJS() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x0284c7, 0.011);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(-3.6, 12.8, 23.2);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.toneMapping = THREE.LinearToneMapping;
+            renderer.toneMappingExposure = 1.05;
+            renderer.xr.enabled = true;
+
+            container.appendChild(renderer.domElement);
+
+            // Environment Lighting (IBL) menggunakan PMREMGenerator & RoomEnvironment
+            const pmremGenerator = new THREE.PMREMGenerator(renderer);
+            pmremGenerator.compileEquirectangularShader();
+            const roomEnv = new THREE.RoomEnvironment();
+            const envRT = pmremGenerator.fromScene(roomEnv, 0.04);
+            scene.environment = envRT.texture;
+            roomEnv.traverse((child) => {
+                if (child.isMesh) {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach((m) => m.dispose());
+                        } else {
+                            child.material.dispose();
+                        }
+                    }
+                }
+            });
+            pmremGenerator.dispose();
+
+            // OrbitControls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.06;
+            controls.maxPolarAngle = Math.PI / 2 - 0.04;
+            controls.minDistance = 6;
+            controls.maxDistance = 32;
+            controls.target.set(-1.7, 3.1, 0);
+
+            // Pencahayaan Langit Siang Cerah & Pantulan Pasir Hangat (HemisphereLight)
+            const hemiLight = new THREE.HemisphereLight(0x38bdf8, 0xd97706, 0.55);
+            scene.add(hemiLight);
+
+            // Cahaya Matahari Utama Hangat & Terang
+            sunLight = new THREE.DirectionalLight(0xfffbeb, 1.55);
+            sunLight.position.set(8.5, 13.5, 5.5);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
+            sunLight.shadow.camera.near = 1;
+            sunLight.shadow.camera.far = 35;
+            const d = 9.5;
+            sunLight.shadow.camera.left = -d;
+            sunLight.shadow.camera.right = d;
+            sunLight.shadow.camera.top = d;
+            sunLight.shadow.camera.bottom = -d;
+            sunLight.shadow.bias = -0.0006;
+            sunLight.shadow.normalBias = 0.02;
+            scene.add(sunLight);
+
+            // Fill Light terang dari sisi pegunungan
+            const fillLight = new THREE.DirectionalLight(0x7dd3fc, 0.42);
+            fillLight.position.set(-9, 8, -7);
+            scene.add(fillLight);
+
+            // Reticle WebXR untuk penempatan AR permukaan nyata
+            const reticleGeo = new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2);
+            const reticleMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
+            xrReticle = new THREE.Mesh(reticleGeo, reticleMat);
+            xrReticle.matrixAutoUpdate = false;
+            xrReticle.visible = false;
+            scene.add(xrReticle);
+
+            buildWaterCycleDiorama();
+            setup3DLabels();
+            setupUIEvents();
+            updateLanguageUI('id');
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        /**
+         * GENERATOR TEKSTUR PROSEDURAL (Uap Halus, Lapisan Geologi, Sungai Mengalir)
+         */
+        function createVaporSpriteTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+            grad.addColorStop(0.45, 'rgba(224, 242, 254, 0.6)');
+            grad.addColorStop(1, 'rgba(224, 242, 254, 0.0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 64, 64);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createStrataTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+
+            const grad = ctx.createLinearGradient(0, 0, 0, 256);
+            grad.addColorStop(0.0, '#ea580c');
+            grad.addColorStop(0.25, '#d97706');
+            grad.addColorStop(0.5, '#b45309');
+            grad.addColorStop(0.75, '#78350f');
+            grad.addColorStop(1.0, '#57534e');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 512, 256);
+
+            for (let layer = 1; layer < 8; layer++) {
+                const yBase = layer * 30;
+                ctx.beginPath();
+                ctx.moveTo(0, yBase);
+                for (let x = 0; x <= 512; x += 16) {
+                    ctx.lineTo(x, yBase + Math.sin(x * 0.03 + layer) * 3.5);
+                }
+                ctx.strokeStyle = layer % 2 === 0 ? 'rgba(69,26,3,0.22)' : 'rgba(255,255,255,0.18)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            for (let i = 0; i < 4000; i++) {
+                const x = Math.random() * 512;
+                const y = Math.random() * 256;
+                const r = 0.8 + Math.random() * 2.2;
+                ctx.fillStyle = Math.random() > 0.4 ? 'rgba(69,26,3,0.15)' : 'rgba(254,243,199,0.18)';
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.ClampToEdgeWrapping;
+            tex.repeat.set(3, 1);
+            return tex;
+        }
+
+        function createFlowingRiverTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+
+            const grad = ctx.createLinearGradient(0, 0, 0, 128);
+            grad.addColorStop(0.0, '#0284c7');
+            grad.addColorStop(0.25, '#06b6d4');
+            grad.addColorStop(0.5, '#67e8f9');
+            grad.addColorStop(0.75, '#06b6d4');
+            grad.addColorStop(1.0, '#0284c7');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 256, 128);
+
+            for (let i = 0; i < 65; i++) {
+                const x = Math.random() * 256;
+                const y = 12 + Math.random() * 104;
+                const len = 18 + Math.random() * 45;
+                ctx.strokeStyle = Math.random() > 0.35 ? 'rgba(255,255,255,0.72)' : 'rgba(224,242,254,0.6)';
+                ctx.lineWidth = 1.2 + Math.random() * 1.5;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + len, y + (Math.random() - 0.5) * 4);
+                ctx.stroke();
+            }
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(6, 1);
+            return tex;
+        }
+
+        /**
+         * FUNGSI KETINGGIAN MEDAN (TERRAIN HEIGHTFIELD)
+         */
+        function getTerrainHeight(x, z) {
+            if (x > 0.85) {
+                const t = Math.min(1, (x - 0.85) / 5.15);
+                return 0.42 - t * 0.82 + Math.sin(z * 0.9 + x) * 0.04;
+            }
+            if (x > -0.35) {
+                const t = (0.85 - x) / 1.2;
+                return 0.42 + t * 0.36;
+            }
+            if (x > -2.3) {
+                const t = (-0.35 - x) / 1.95;
+                const rolling = Math.sin(z * 0.7) * 0.14 + Math.cos(x * 1.8 + z * 0.5) * 0.08;
+                return 0.78 + t * 0.62 + rolling;
+            }
+            const tMtn = Math.min(1, (-2.3 - x) / 3.7);
+            const ridge1 = Math.exp(-Math.pow((z + 1.5) * 0.52, 2)) * 4.2;
+            const ridge2 = Math.exp(-Math.pow((z - 1.3) * 0.58, 2)) * 3.5;
+            const ridge3 = Math.exp(-Math.pow((z - 3.3) * 0.75, 2)) * 2.1;
+            const detail = Math.sin(x * 3.2 + z * 2.8) * 0.14 + Math.cos(x * 5.0 - z * 4.0) * 0.07;
+            return 1.4 + tMtn * (ridge1 + ridge2 + ridge3) + detail * tMtn;
+        }
+
+        /**
+         * 2. MEMBANGUN DIORAMA 3D SIKLUS AIR REALISTIS
+         */
+        function buildWaterCycleDiorama() {
+            dioramaGroup = new THREE.Group();
+            scene.add(dioramaGroup);
+
+            // Shadow Catcher Plane untuk Mode AR
+            const shadowCatcherGeo = new THREE.PlaneGeometry(24, 24);
+            shadowCatcherGeo.rotateX(-Math.PI / 2);
+            const shadowCatcherMat = new THREE.ShadowMaterial({ opacity: 0.38 });
+            shadowCatcherPlane = new THREE.Mesh(shadowCatcherGeo, shadowCatcherMat);
+            shadowCatcherPlane.position.y = -0.61;
+            shadowCatcherPlane.receiveShadow = true;
+            shadowCatcherPlane.visible = false;
+            dioramaGroup.add(shadowCatcherPlane);
+
+            // --- A. MEDAN KONTINU BERLAPIS (DASAR LAUT -> PANTAI -> LEMBAH -> GUNUNG SALJU) ---
+            const terrainW = 12;
+            const terrainD = 9;
+            const segX = 96;
+            const segZ = 72;
+            const terrainGeo = new THREE.PlaneGeometry(terrainW, terrainD, segX, segZ);
+            terrainGeo.rotateX(-Math.PI / 2);
+
+            const posAttr = terrainGeo.attributes.position;
+            const colors = new Float32Array(posAttr.count * 3);
+
+            const cDeepSand = new THREE.Color(0xd97706);
+            const cWetSand = new THREE.Color(0xf59e0b);
+            const cDrySand = new THREE.Color(0xfbbf24);
+            const cGrassLush = new THREE.Color(0x16a34a);
+            const cGrassDark = new THREE.Color(0x14532d);
+            const cRock = new THREE.Color(0x64748b);
+            const cRockDark = new THREE.Color(0x475569);
+            const cSnow = new THREE.Color(0xf8fafc);
+            const tempColor = new THREE.Color();
+
+            for (let i = 0; i < posAttr.count; i++) {
+                const vx = posAttr.getX(i);
+                const vz = posAttr.getZ(i);
+                const vy = getTerrainHeight(vx, vz);
+                posAttr.setY(i, vy);
+
+                const noise = (Math.sin(vx * 4.5) * Math.cos(vz * 4.5)) * 0.5 + 0.5;
+                if (vy < 0.32) {
+                    tempColor.copy(cDeepSand).lerp(cWetSand, Math.max(0, (vy + 0.4) / 0.72));
+                } else if (vy < 0.56) {
+                    tempColor.copy(cWetSand).lerp(cDrySand, (vy - 0.32) / 0.24);
+                } else if (vy < 0.85) {
+                    tempColor.copy(cDrySand).lerp(cGrassLush, (vy - 0.56) / 0.29);
+                } else if (vy < 2.15) {
+                    tempColor.copy(cGrassLush).lerp(cGrassDark, noise * 0.45);
+                } else if (vy < 3.45) {
+                    const tRock = (vy - 2.15) / 1.3;
+                    tempColor.copy(cGrassDark).lerp(noise > 0.45 ? cRock : cRockDark, Math.min(1, tRock * 1.25));
+                } else {
+                    const tSnow = Math.min(1, (vy - 3.45) / 0.75);
+                    tempColor.copy(cRock).lerp(cSnow, tSnow);
+                }
+
+                colors[i * 3] = tempColor.r;
+                colors[i * 3 + 1] = tempColor.g;
+                colors[i * 3 + 2] = tempColor.b;
+            }
+
+            terrainGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            terrainGeo.computeVertexNormals();
+
+            const terrainMat = new THREE.MeshStandardMaterial({
+                vertexColors: true,
+                roughness: 0.85,
+                metalness: 0.0,
+                envMapIntensity: 0.25
+            });
+            const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
+            terrainMesh.receiveShadow = true;
+            terrainMesh.castShadow = true;
+            dioramaGroup.add(terrainMesh);
+
+            // --- B. PENAMPANG LAPISAN GEOLOGI TANAH (EARTH CROSS-SECTION) ---
+            const strataTex = createStrataTexture();
+            const strataMat = new THREE.MeshStandardMaterial({
+                map: strataTex,
+                roughness: 0.9,
+                metalness: 0.0,
+                envMapIntensity: 0.2,
+                side: THREE.DoubleSide
+            });
+            const bottomSlateMat = new THREE.MeshStandardMaterial({
+                color: 0x44403c,
+                roughness: 0.92,
+                envMapIntensity: 0.2
+            });
+
+            const bottomSlab = new THREE.Mesh(new THREE.BoxGeometry(12.02, 0.25, 9.02), bottomSlateMat);
+            bottomSlab.position.set(0, -0.48, 0);
+            bottomSlab.receiveShadow = true;
+            dioramaGroup.add(bottomSlab);
+
+            const buildWallSkirt = (isFrontBack, fixedCoord, length, segs) => {
+                const wallGeo = new THREE.PlaneGeometry(length, 2, segs, 1);
+                const wPos = wallGeo.attributes.position;
+                for (let i = 0; i < wPos.count; i++) {
+                    const u = wPos.getX(i);
+                    const v = wPos.getY(i);
+                    const wx = isFrontBack ? u : fixedCoord;
+                    const wz = isFrontBack ? fixedCoord : u;
+                    const topY = getTerrainHeight(wx, wz) - 0.01;
+                    const finalY = v > 0 ? topY : -0.45;
+                    wPos.setXYZ(i, wx, finalY, wz);
+                }
+                wallGeo.computeVertexNormals();
+                const wallMesh = new THREE.Mesh(wallGeo, strataMat);
+                wallMesh.castShadow = true;
+                wallMesh.receiveShadow = true;
+                return wallMesh;
+            };
+
+            const frontWall = buildWallSkirt(true, 4.5, 12, 96);
+            const backWall = buildWallSkirt(true, -4.5, 12, 96);
+            const leftWall = buildWallSkirt(false, -6.0, 9, 72);
+            const rightWall = buildWallSkirt(false, 6.0, 9, 72);
+            dioramaGroup.add(frontWall, backWall, leftWall, rightWall);
+
+            // --- C. LAUTAN BEROMBAK REFLEKTIF & BUIH PANTAI ---
+            const oceanGeo = new THREE.PlaneGeometry(5.2, 8.98, 44, 56);
+            oceanGeo.rotateX(-Math.PI / 2);
+
+            const oPos = oceanGeo.attributes.position;
+            const oColors = new Float32Array(oPos.count * 3);
+            const cShallow = new THREE.Color(0x0891b2);
+            const cMidSea = new THREE.Color(0x0284c7);
+            const cDeepSea = new THREE.Color(0x1e3a8a);
+
+            for (let i = 0; i < oPos.count; i++) {
+                const lx = oPos.getX(i);
+                const tShore = Math.min(1, Math.max(0, (lx + 2.6) / 5.2));
+                if (tShore < 0.35) {
+                    tempColor.copy(cShallow).lerp(cMidSea, tShore / 0.35);
+                } else {
+                    tempColor.copy(cMidSea).lerp(cDeepSea, (tShore - 0.35) / 0.65);
+                }
+                oColors[i * 3] = tempColor.r;
+                oColors[i * 3 + 1] = tempColor.g;
+                oColors[i * 3 + 2] = tempColor.b;
+            }
+            oceanGeo.setAttribute('color', new THREE.BufferAttribute(oColors, 3));
+            oceanBasePositions = Float32Array.from(oPos.array);
+
+            const oceanMat = new THREE.MeshPhysicalMaterial({
+                vertexColors: true,
+                roughness: 0.14,
+                metalness: 0.05,
+                clearcoat: 0.85,
+                clearcoatRoughness: 0.12,
+                envMapIntensity: 0.45,
+                transparent: true,
+                opacity: 0.94
+            });
+            oceanMesh = new THREE.Mesh(oceanGeo, oceanMat);
+            oceanMesh.position.set(3.38, 0.46, 0);
+            oceanMesh.receiveShadow = true;
+            dioramaGroup.add(oceanMesh);
+
+            // Volume sisi samping air laut
+            const waterSideGeo = new THREE.BoxGeometry(5.2, 0.86, 8.95);
+            const waterSideMat = new THREE.MeshPhysicalMaterial({
+                color: 0x0369a1,
+                roughness: 0.15,
+                envMapIntensity: 0.4,
+                transparent: true,
+                opacity: 0.9
+            });
+            const waterSideMesh = new THREE.Mesh(waterSideGeo, waterSideMat);
+            waterSideMesh.position.set(3.38, 0.04, 0);
+            dioramaGroup.add(waterSideMesh);
+
+            // Buih ombak pantai beranimasi
+            const foamGeo = new THREE.PlaneGeometry(0.45, 8.9);
+            foamGeo.rotateX(-Math.PI / 2);
+            const foamMat = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.78
+            });
+            shoreFoamMesh = new THREE.Mesh(foamGeo, foamMat);
+            shoreFoamMesh.position.set(0.88, 0.48, 0);
+            dioramaGroup.add(shoreFoamMesh);
+
+            // --- D. SUNGAI PEGUNUNGAN MENGALIR MENUJU LAUT ---
+            riverCurve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(-4.0, 2.75, -0.35),
+                new THREE.Vector3(-2.7, 1.58, 0.15),
+                new THREE.Vector3(-1.4, 1.08, -0.35),
+                new THREE.Vector3(-0.3, 0.74, 0.35),
+                new THREE.Vector3(0.95, 0.49, 0.1)
+            ]);
+
+            const riverPoints = riverCurve.getPoints(48);
+            const riverRibbons = [];
+            const riverUVs = [];
+            for (let i = 0; i < riverPoints.length - 1; i++) {
+                const p1 = riverPoints[i];
+                const p2 = riverPoints[i + 1];
+                const tangent = new THREE.Vector3().subVectors(p2, p1).normalize();
+                const side = new THREE.Vector3(-tangent.z, 0, tangent.x);
+                const w1 = 0.14 + (i / riverPoints.length) * 0.36;
+                const w2 = 0.14 + ((i + 1) / riverPoints.length) * 0.36;
+
+                const a = p1.clone().addScaledVector(side, w1);
+                const b = p1.clone().addScaledVector(side, -w1);
+                const c = p2.clone().addScaledVector(side, w2);
+                const d = p2.clone().addScaledVector(side, -w2);
+
+                const u1 = i / riverPoints.length;
+                const u2 = (i + 1) / riverPoints.length;
+
+                riverRibbons.push(a.x, a.y + 0.04, a.z, b.x, b.y + 0.04, b.z, c.x, c.y + 0.04, c.z);
+                riverUVs.push(u1, 0, u1, 1, u2, 0);
+
+                riverRibbons.push(b.x, b.y + 0.04, b.z, d.x, d.y + 0.04, d.z, c.x, c.y + 0.04, c.z);
+                riverUVs.push(u1, 1, u2, 1, u2, 0);
+            }
+
+            const riverGeo = new THREE.BufferGeometry();
+            riverGeo.setAttribute('position', new THREE.Float32BufferAttribute(riverRibbons, 3));
+            riverGeo.setAttribute('uv', new THREE.Float32BufferAttribute(riverUVs, 2));
+            riverGeo.computeVertexNormals();
+
+            riverTexture = createFlowingRiverTexture();
+            const riverMat = new THREE.MeshPhysicalMaterial({
+                map: riverTexture,
+                roughness: 0.16,
+                metalness: 0.04,
+                clearcoat: 0.8,
+                envMapIntensity: 0.4,
+                transparent: true,
+                opacity: 0.95,
+                side: THREE.DoubleSide
+            });
+            riverMesh = new THREE.Mesh(riverGeo, riverMat);
+            riverMesh.receiveShadow = true;
+            dioramaGroup.add(riverMesh);
+
+            // --- E. VEGETASI REALISTIS (POHON CEMARA & POHON DAUN BERGUGUS) ---
+            const createPineTree = (x, z, scale = 1) => {
+                const tree = new THREE.Group();
+                const trunk = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.06, 0.11, 0.55, 8),
+                    new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.9, envMapIntensity: 0.2 })
+                );
+                trunk.position.y = 0.275;
+                trunk.castShadow = true;
+                tree.add(trunk);
+
+                const tiers = [
+                    { y: 0.55, r: 0.44, h: 0.65, col: 0x14532d },
+                    { y: 0.88, r: 0.35, h: 0.58, col: 0x15803d },
+                    { y: 1.18, r: 0.24, h: 0.48, col: 0x16a34a }
+                ];
+                tiers.forEach(t => {
+                    const cone = new THREE.Mesh(
+                        new THREE.ConeGeometry(t.r, t.h, 9),
+                        new THREE.MeshStandardMaterial({ color: t.col, roughness: 0.78, envMapIntensity: 0.25 })
+                    );
+                    cone.position.y = t.y;
+                    cone.castShadow = true;
+                    cone.receiveShadow = true;
+                    tree.add(cone);
+                });
+
+                const yGround = getTerrainHeight(x, z);
+                tree.position.set(x, yGround - 0.05, z);
+                tree.scale.setScalar(scale);
+                tree.userData = { baseRotZ: 0, phase: Math.random() * Math.PI * 2 };
+                dioramaGroup.add(tree);
+                trees.push(tree);
+            };
+
+            const createBroadleafTree = (x, z, scale = 1) => {
+                const tree = new THREE.Group();
+                const trunk = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.07, 0.12, 0.6, 8),
+                    new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.9, envMapIntensity: 0.2 })
+                );
+                trunk.position.y = 0.3;
+                trunk.castShadow = true;
+                tree.add(trunk);
+
+                const foliageClusters = [
+                    [0, 0.72, 0, 0.38, 0x15803d],
+                    [-0.22, 0.62, 0.14, 0.28, 0x14532d],
+                    [0.22, 0.64, -0.12, 0.29, 0x16a34a],
+                    [0.05, 0.88, 0.08, 0.26, 0x22c55e]
+                ];
+                foliageClusters.forEach(([cx, cy, cz, r, col]) => {
+                    const leaf = new THREE.Mesh(
+                        new THREE.IcosahedronGeometry(r, 1),
+                        new THREE.MeshStandardMaterial({ color: col, roughness: 0.78, flatShading: true, envMapIntensity: 0.25 })
+                    );
+                    leaf.position.set(cx, cy, cz);
+                    leaf.castShadow = true;
+                    leaf.receiveShadow = true;
+                    tree.add(leaf);
+                });
+
+                const yGround = getTerrainHeight(x, z);
+                tree.position.set(x, yGround - 0.05, z);
+                tree.scale.setScalar(scale);
+                tree.userData = { baseRotZ: 0, phase: Math.random() * Math.PI * 2 };
+                dioramaGroup.add(tree);
+                trees.push(tree);
+            };
+
+            createBroadleafTree(-1.3, 1.35, 1.15);
+            createBroadleafTree(-0.7, 2.2, 0.95);
+            createBroadleafTree(-1.6, 2.8, 1.08);
+            createBroadleafTree(-0.85, -1.65, 1.05);
+            createPineTree(-2.1, -2.5, 1.15);
+            createPineTree(-2.5, 1.85, 1.2);
+            createPineTree(-2.7, -0.95, 1.0);
+            createPineTree(-1.85, -3.3, 0.9);
+            createPineTree(-2.9, 3.1, 1.05);
+
+            // Bebatuan kecil alami
+            const rockMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.88, flatShading: true, envMapIntensity: 0.2 });
+            [
+                [-2.4, 0.6, 0.28], [-1.9, -0.75, 0.22], [-0.5, 1.0, 0.18],
+                [0.2, -0.5, 0.16], [-3.2, 2.2, 0.34]
+            ].forEach(([rx, rz, rs]) => {
+                const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(rs, 0), rockMat);
+                rock.position.set(rx, getTerrainHeight(rx, rz), rz);
+                rock.rotation.set(Math.random(), Math.random(), Math.random());
+                rock.castShadow = true;
+                rock.receiveShadow = true;
+                dioramaGroup.add(rock);
+            });
+
+            // --- F. MATAHARI BERSINAR DENGAN CORONA ATMOSFER CERAH ---
+            sunGroup = new THREE.Group();
+            const sunCore = new THREE.Mesh(
+                new THREE.SphereGeometry(0.95, 28, 28),
+                new THREE.MeshBasicMaterial({ color: 0xfef08a })
+            );
+            sunGroup.add(sunCore);
+
+            const sunInnerHalo = new THREE.Mesh(
+                new THREE.SphereGeometry(1.32, 28, 28),
+                new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.62 })
+            );
+            sunGroup.add(sunInnerHalo);
+
+            const sunOuterHalo = new THREE.Mesh(
+                new THREE.SphereGeometry(1.9, 28, 28),
+                new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.28 })
+            );
+            sunGroup.add(sunOuterHalo);
+
+            sunGroup.position.set(4.5, 7.4, -2.5);
+            dioramaGroup.add(sunGroup);
+
+            // --- G. AWAN KONDENSASI PUTIH KAPAS CERAH & AWAN MENDUNG GELAP ---
+            const createVolumetricCloud = (startX, y, z, scale, isRainCloud) => {
+                const cloud = new THREE.Group();
+                const topColor = isRainCloud ? 0x334155 : 0xffffff;
+                const bottomColor = isRainCloud ? 0x0f172a : 0x7dd3fc;
+
+                const topMat = new THREE.MeshStandardMaterial({
+                    color: topColor,
+                    roughness: 0.9,
+                    metalness: 0.0,
+                    envMapIntensity: isRainCloud ? 0.12 : 0.3,
+                    transparent: true,
+                    opacity: 0.98
+                });
+                const bottomMat = new THREE.MeshStandardMaterial({
+                    color: bottomColor,
+                    roughness: 0.92,
+                    metalness: 0.0,
+                    envMapIntensity: isRainCloud ? 0.1 : 0.3,
+                    transparent: true,
+                    opacity: 0.97
+                });
+
+                const puffs = [
+                    { pos: [0, 0.25, 0], r: 0.92, top: true },
+                    { pos: [-0.72, 0.1, 0.18], r: 0.72, top: true },
+                    { pos: [0.75, 0.08, -0.14], r: 0.74, top: true },
+                    { pos: [-0.35, 0.45, -0.2], r: 0.65, top: true },
+                    { pos: [0.35, 0.42, 0.2], r: 0.62, top: true },
+                    { pos: [-0.45, -0.22, 0.05], r: 0.64, top: false },
+                    { pos: [0.15, -0.25, -0.05], r: 0.68, top: false },
+                    { pos: [0.65, -0.2, 0.1], r: 0.56, top: false }
+                ];
+
+                puffs.forEach(p => {
+                    const mesh = new THREE.Mesh(
+                        new THREE.SphereGeometry(p.r, 18, 18),
+                        p.top ? topMat : bottomMat
+                    );
+                    mesh.position.set(p.pos[0], p.pos[1], p.pos[2]);
+                    mesh.scale.set(1.15, p.top ? 0.88 : 0.62, 1.05);
+                    mesh.castShadow = true;
+                    cloud.add(mesh);
+                });
+
+                cloud.position.set(startX, y, z);
+                cloud.scale.setScalar(scale);
+                cloud.userData = {
+                    baseX: startX,
+                    speed: 0.2 + Math.random() * 0.12,
+                    range: 2.3,
+                    phase: Math.random() * Math.PI * 2
+                };
+                dioramaGroup.add(cloud);
+                clouds.push(cloud);
+            };
+
+            createVolumetricCloud(-3.3, 6.2, -0.6, 1.18, true);
+            createVolumetricCloud(-1.9, 6.45, 1.5, 1.05, true);
+            createVolumetricCloud(0.6, 6.65, -1.6, 0.92, false);
+            createVolumetricCloud(2.3, 6.3, 1.1, 0.85, false);
+
+            // --- H. SISTEM PARTIKEL SIKLUS AIR ---
+            const vaporTex = createVaporSpriteTexture();
+
+            // 1. Partikel Evaporasi
+            for (let i = 0; i < 65; i++) {
+                const mat = new THREE.SpriteMaterial({
+                    map: vaporTex,
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 0.75,
+                    depthWrite: false
+                });
+                const sprite = new THREE.Sprite(mat);
+                sprite.position.set(
+                    1.3 + Math.random() * 4.3,
+                    0.6 + Math.random() * 5.0,
+                    -3.6 + Math.random() * 7.2
+                );
+                sprite.userData = {
+                    speedY: 0.65 + Math.random() * 0.55,
+                    wobblePhase: Math.random() * Math.PI * 2,
+                    minY: 0.6,
+                    maxY: 5.8
+                };
+                dioramaGroup.add(sprite);
+                evapParticles.push(sprite);
+            }
+
+            // 2. Partikel Transpirasi
+            const treeCenters = [
+                [-1.3, 1.35], [-0.7, 2.2], [-1.6, 2.8], [-0.85, -1.65], [-2.1, -2.5], [-2.5, 1.85]
+            ];
+            for (let i = 0; i < 36; i++) {
+                const tc = treeCenters[i % treeCenters.length];
+                const mat = new THREE.SpriteMaterial({
+                    map: vaporTex,
+                    color: 0x2dd4bf,
+                    transparent: true,
+                    opacity: 0.82,
+                    depthWrite: false
+                });
+                const sprite = new THREE.Sprite(mat);
+                const startY = getTerrainHeight(tc[0], tc[1]) + 0.75;
+                sprite.position.set(
+                    tc[0] + (Math.random() - 0.5) * 0.7,
+                    startY + Math.random() * 3.8,
+                    tc[1] + (Math.random() - 0.5) * 0.7
+                );
+                sprite.userData = {
+                    baseX: tc[0],
+                    baseZ: tc[1],
+                    minY: startY,
+                    maxY: 5.7,
+                    speedY: 0.55 + Math.random() * 0.45,
+                    wobblePhase: Math.random() * Math.PI * 2
+                };
+                dioramaGroup.add(sprite);
+                transpParticles.push(sprite);
+            }
+
+            // 3. Partikel Presipitasi & Cipratan Air
+            const rainStreakGeo = new THREE.CylinderGeometry(0.012, 0.024, 0.34, 5);
+            const rainStreakMat = new THREE.MeshBasicMaterial({
+                color: 0xbae6fd,
+                transparent: true,
+                opacity: 0.94
+            });
+            const splashGeo = new THREE.RingGeometry(0.03, 0.09, 14).rotateX(-Math.PI / 2);
+
+            for (let i = 0; i < 110; i++) {
+                const drop = new THREE.Mesh(rainStreakGeo, rainStreakMat);
+                const rx = -4.6 + Math.random() * 3.5;
+                const rz = -2.2 + Math.random() * 4.4;
+                const groundY = getTerrainHeight(rx, rz);
+
+                drop.position.set(rx, groundY + Math.random() * (5.8 - groundY), rz);
+                drop.rotation.z = -0.14;
+                drop.userData = {
+                    rx: rx,
+                    rz: rz,
+                    groundY: groundY,
+                    speedY: 3.4 + Math.random() * 1.4
+                };
+                dioramaGroup.add(drop);
+                rainParticles.push(drop);
+
+                if (i < 24) {
+                    const spMat = new THREE.MeshBasicMaterial({
+                        color: 0xffffff,
+                        transparent: true,
+                        opacity: 0.0,
+                        side: THREE.DoubleSide
+                    });
+                    const splash = new THREE.Mesh(splashGeo, spMat);
+                    splash.position.set(rx, groundY + 0.03, rz);
+                    splash.userData = { life: 0, maxLife: 0.45 };
+                    dioramaGroup.add(splash);
+                    splashParticles.push(splash);
+                }
+            }
+
+            // 4. Partikel Koleksi (Aliran Sungai & Air Tanah)
+            const riverDropGeo = new THREE.SphereGeometry(0.075, 8, 8);
+            const riverDropMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            for (let i = 0; i < 32; i++) {
+                const p = new THREE.Mesh(riverDropGeo, riverDropMat);
+                p.userData = {
+                    t: i / 32,
+                    speed: 0.14 + Math.random() * 0.05,
+                    offsetZ: (Math.random() - 0.5) * 0.22
+                };
+                dioramaGroup.add(p);
+                riverParticles.push(p);
+            }
+
+            const gwGeo = new THREE.SphereGeometry(0.055, 8, 8);
+            const gwMat = new THREE.MeshBasicMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.96 });
+            for (let i = 0; i < 24; i++) {
+                const gw = new THREE.Mesh(gwGeo, gwMat);
+                gw.userData = {
+                    progress: i / 24,
+                    speed: 0.12 + Math.random() * 0.04
+                };
+                dioramaGroup.add(gw);
+                groundwaterParticles.push(gw);
+            }
+        }
+
+        /**
+         * 3. SETUP LABEL 3D HTML MELAYANG
+         */
+        function setup3DLabels() {
+            const container = document.getElementById('labels-container');
+            const labelConfigs = [
+                { id: 'sun', key: 'sun', icon: 'fa-sun', pos: new THREE.Vector3(4.5, 8.9, -2.5), stages: ['all', 'evaporation'] },
+                { id: 'evap', key: 'evap', icon: 'fa-arrow-up', pos: new THREE.Vector3(3.5, 3.3, 0.6), stages: ['all', 'evaporation'] },
+                { id: 'transp', key: 'transp', icon: 'fa-seedling', pos: new THREE.Vector3(-1.3, 3.4, 1.5), stages: ['all', 'transpiration'] },
+                { id: 'cond', key: 'cond', icon: 'fa-cloud', pos: new THREE.Vector3(-1.8, 7.6, 0.3), stages: ['all', 'condensation'] },
+                { id: 'precip', key: 'precip', icon: 'fa-cloud-rain', pos: new THREE.Vector3(-3.3, 4.3, 0.2), stages: ['all', 'precipitation'] },
+                { id: 'coll', key: 'coll', icon: 'fa-water', pos: new THREE.Vector3(-0.6, 1.5, 0.5), stages: ['all', 'collection'] }
+            ];
+
+            labelConfigs.forEach(cfg => {
+                const el = document.createElement('div');
+                el.className = 'label-3d';
+                el.innerHTML = `<i class="fa-solid ${cfg.icon}"></i><span></span>`;
+                container.appendChild(el);
+                labels3D.push({ element: el, ...cfg });
+            });
+        }
+
+        function update3DLabelsPosition() {
+            const container = document.getElementById('labels-container');
+            if (!state.showLabels) {
+                container.style.display = 'none';
+                return;
+            }
+            container.style.display = 'block';
+
+            const widthHalf = window.innerWidth / 2;
+            const heightHalf = window.innerHeight / 2;
+
+            labels3D.forEach(lbl => {
+                const isRelevant = lbl.stages.includes(state.currentStage);
+                if (!isRelevant) {
+                    lbl.element.style.opacity = '0';
+                    return;
+                }
+
+                const worldPos = lbl.pos.clone();
+                dioramaGroup.localToWorld(worldPos);
+                worldPos.project(camera);
+
+                if (worldPos.z > 1) {
+                    lbl.element.style.opacity = '0';
+                    return;
+                }
+
+                const x = (worldPos.x * widthHalf) + widthHalf;
+                const y = -(worldPos.y * heightHalf) + heightHalf;
+
+                lbl.element.style.opacity = '1';
+                lbl.element.style.left = `${x}px`;
+                lbl.element.style.top = `${y}px`;
+            });
+        }
+
+        /**
+         * 4. PENGATURAN BAHASA & INTERAKSI UI
+         */
+        function updateLanguageUI(lang) {
+            state.lang = lang;
+            const t = I18N[lang];
+            document.documentElement.lang = lang;
+
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                const isSelected = btn.getAttribute('data-lang') === lang;
+                if (isSelected) {
+                    btn.classList.add('bg-sky-500', 'text-white', 'shadow-sm');
+                    btn.classList.remove('text-slate-600');
+                } else {
+                    btn.classList.remove('bg-sky-500', 'text-white', 'shadow-sm');
+                    btn.classList.add('text-slate-600');
+                }
+            });
+
+            document.getElementById('app-title').textContent = t.appTitle;
+            document.getElementById('mode-subtitle').textContent = state.isARMode ? t.modeSubtitleAR : t.modeSubtitle3D;
+            document.getElementById('btn-ar-text').textContent = state.isARMode ? t.exitAR : t.enterAR;
+            document.getElementById('btn-labels-text').textContent = t.labelsBtn;
+            document.getElementById('btn-play-text').textContent = state.isPlaying ? t.pauseBtn : t.playBtn;
+            document.getElementById('speed-label').textContent = t.speedLabel;
+            document.getElementById('btn-reset-text').textContent = t.resetCam;
+            document.getElementById('ar-cam-status').textContent = t.arCamStatus;
+            document.getElementById('ar-scale-label').textContent = t.arScaleLabel;
+            document.getElementById('ar-gesture-hint').textContent = t.arGestureHint;
+
+            Object.keys(t.stages).forEach(stageKey => {
+                const el = document.getElementById(`stage-label-${stageKey}`);
+                if (el) el.textContent = t.stages[stageKey].nav;
+            });
+
+            labels3D.forEach(lbl => {
+                const span = lbl.element.querySelector('span');
+                if (span) span.textContent = t.labels3D[lbl.key];
+            });
+
+            updateStageInfoCard(state.currentStage);
+        }
+
+        function updateStageInfoCard(stageKey) {
+            const t = I18N[state.lang].stages[stageKey];
+            const cfg = STAGE_CONFIG[stageKey];
+            if (!t || !cfg) return;
+
+            const card = document.getElementById('info-card');
+            card.className = `glass-panel p-3 sm:p-3.5 rounded-2xl max-w-xs sm:max-w-[330px] w-full pointer-events-auto transition-all duration-300 border-l-4 ${cfg.borderColor}`;
+            document.getElementById('info-badge').textContent = t.badge;
+            document.getElementById('info-title').textContent = t.title;
+            document.getElementById('info-desc').textContent = t.desc;
+            document.getElementById('info-fact').textContent = t.fact;
+        }
+
+        function selectStage(stageKey) {
+            state.currentStage = stageKey;
+            const cfg = STAGE_CONFIG[stageKey];
+            if (!cfg) return;
+
+            document.querySelectorAll('.stage-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-stage') === stageKey);
+            });
+
+            updateStageInfoCard(stageKey);
+
+            if (!state.isARMode) {
+                state.targetCamPos.set(cfg.camPos.x, cfg.camPos.y, cfg.camPos.z);
+                state.targetLookAt.set(cfg.camTarget.x, cfg.camTarget.y, cfg.camTarget.z);
+                state.isTransitioningCam = true;
+            }
+        }
+
+        function showToast(msg) {
+            const box = document.getElementById('toast-box');
+            document.getElementById('toast-message').textContent = msg;
+            box.style.opacity = '1';
+            clearTimeout(window.toastTimer);
+            window.toastTimer = setTimeout(() => {
+                box.style.opacity = '0';
+            }, 3800);
+        }
+
+        /**
+         * 5. MODE AUGMENTED REALITY (WebXR + AR Camera Fallback)
+         */
+        async function toggleARMode() {
+            const btn = document.getElementById('btn-ar-toggle');
+            const btnText = document.getElementById('btn-ar-text');
+            const subtitle = document.getElementById('mode-subtitle');
+            const arPanel = document.getElementById('ar-controls-panel');
+            const videoEl = document.getElementById('ar-camera-feed');
+            const t = I18N[state.lang];
+
+            if (state.isARMode) {
+                if (state.arType === 'webxr' && renderer.xr.getSession()) {
+                    await renderer.xr.getSession().end();
+                }
+                if (state.cameraStream) {
+                    state.cameraStream.getTracks().forEach(track => track.stop());
+                    state.cameraStream = null;
+                }
+                videoEl.style.display = 'none';
+                document.body.style.background = 'radial-gradient(circle at 75% 15%, #facc15 0%, #0284c7 35%, #0369a1 70%, #0c4a6e 100%)';
+                scene.fog = new THREE.FogExp2(0x0284c7, 0.011);
+                shadowCatcherPlane.visible = false;
+
+                state.isARMode = false;
+                state.arType = 'none';
+                dioramaGroup.scale.setScalar(1);
+                dioramaGroup.position.set(0, 0, 0);
+                document.getElementById('ar-scale-slider').value = "1.0";
+                document.getElementById('scale-val').textContent = "100%";
+
+                btn.classList.remove('from-rose-500', 'to-red-600');
+                btn.classList.add('from-emerald-500', 'to-teal-500');
+                btnText.textContent = t.enterAR;
+                subtitle.textContent = t.modeSubtitle3D;
+                arPanel.classList.add('hidden');
+                selectStage('all');
+                showToast(t.toastARExit);
+                return;
+            }
+
+            if ('xr' in navigator) {
+                try {
+                    const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
+                    if (isSupported) {
+                        const session = await navigator.xr.requestSession('immersive-ar', {
+                            requiredFeatures: ['hit-test'],
+                            optionalFeatures: ['dom-overlay'],
+                            domOverlay: { root: document.getElementById('ui-overlay') }
+                        });
+                        renderer.xr.setReferenceSpaceType('local');
+                        await renderer.xr.setSession(session);
+
+                        state.isARMode = true;
+                        state.arType = 'webxr';
+                        scene.fog = null;
+                        shadowCatcherPlane.visible = true;
+                        dioramaGroup.scale.setScalar(0.14);
+                        dioramaGroup.position.set(0, -0.3, -1.2);
+
+                        btn.classList.replace('from-emerald-500', 'from-rose-500');
+                        btn.classList.replace('to-teal-500', 'to-red-600');
+                        btnText.textContent = t.exitAR;
+                        subtitle.textContent = t.modeSubtitleAR;
+                        arPanel.classList.remove('hidden');
+                        showToast(t.toastWebXRStart);
+
+                        session.addEventListener('end', () => {
+                            const currT = I18N[state.lang];
+                            state.isARMode = false;
+                            state.arType = 'none';
+                            scene.fog = new THREE.FogExp2(0x0284c7, 0.011);
+                            shadowCatcherPlane.visible = false;
+                            dioramaGroup.scale.setScalar(1);
+                            dioramaGroup.position.set(0, 0, 0);
+                            btnText.textContent = currT.enterAR;
+                            subtitle.textContent = currT.modeSubtitle3D;
+                            arPanel.classList.add('hidden');
+                        });
+                        return;
+                    }
+                } catch (err) {
+                    console.warn("WebXR fallback to camera stream:", err);
+                }
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: "environment" } },
+                    audio: false
+                });
+                state.cameraStream = stream;
+                videoEl.srcObject = stream;
+                videoEl.style.display = 'block';
+                document.body.style.background = 'transparent';
+                scene.fog = null;
+                shadowCatcherPlane.visible = true;
+
+                state.isARMode = true;
+                state.arType = 'camera';
+                dioramaGroup.scale.setScalar(0.85);
+                document.getElementById('ar-scale-slider').value = "0.85";
+                document.getElementById('scale-val').textContent = "85%";
+
+                btn.classList.replace('from-emerald-500', 'from-rose-500');
+                btn.classList.replace('to-teal-500', 'to-red-600');
+                btnText.textContent = t.exitAR;
+                subtitle.textContent = t.modeSubtitleAR;
+                arPanel.classList.remove('hidden');
+                showToast(t.toastCamStart);
+            } catch (err) {
+                document.body.style.background = 'radial-gradient(circle at center, #0284c7 0%, #0c4a6e 100%)';
+                scene.fog = null;
+                shadowCatcherPlane.visible = true;
+                state.isARMode = true;
+                state.arType = 'camera';
+                btn.classList.replace('from-emerald-500', 'from-rose-500');
+                btn.classList.replace('to-teal-500', 'to-red-600');
+                btnText.textContent = t.exitAR;
+                subtitle.textContent = t.modeSubtitleAR;
+                arPanel.classList.remove('hidden');
+                showToast(t.toastCamDenied);
+            }
+        }
+
+        function setupUIEvents() {
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const selectedLang = btn.getAttribute('data-lang');
+                    if (selectedLang !== state.lang) {
+                        updateLanguageUI(selectedLang);
+                    }
+                });
+            });
+
+            document.querySelectorAll('.stage-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    selectStage(btn.getAttribute('data-stage'));
+                });
+            });
+
+            document.getElementById('btn-ar-toggle').addEventListener('click', toggleARMode);
+
+            document.getElementById('btn-labels').addEventListener('click', (e) => {
+                state.showLabels = !state.showLabels;
+                e.currentTarget.classList.toggle('active', state.showLabels);
+            });
+
+            document.getElementById('btn-play-pause').addEventListener('click', () => {
+                state.isPlaying = !state.isPlaying;
+                const icon = document.getElementById('icon-play-pause');
+                const text = document.getElementById('btn-play-text');
+                const t = I18N[state.lang];
+                icon.className = state.isPlaying ? 'fa-solid fa-pause text-sky-600' : 'fa-solid fa-play text-emerald-600';
+                text.textContent = state.isPlaying ? t.pauseBtn : t.playBtn;
+            });
+
+            document.querySelectorAll('.speed-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    state.speed = parseFloat(btn.getAttribute('data-speed'));
+                    document.querySelectorAll('.speed-btn').forEach(b => {
+                        b.classList.remove('bg-sky-500', 'text-white', 'font-semibold', 'shadow-sm');
+                        b.classList.add('text-slate-600');
+                    });
+                    btn.classList.add('bg-sky-500', 'text-white', 'font-semibold', 'shadow-sm');
+                    btn.classList.remove('text-slate-600');
+                });
+            });
+
+            document.getElementById('btn-reset-cam').addEventListener('click', () => {
+                selectStage(state.currentStage);
+            });
+
+            document.getElementById('ar-scale-slider').addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                const base = state.arType === 'webxr' ? 0.14 : 1.0;
+                dioramaGroup.scale.setScalar(val * base);
+                document.getElementById('scale-val').textContent = `${Math.round(val * 100)}%`;
+            });
+
+            controls.addEventListener('start', () => {
+                state.isTransitioningCam = false;
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        /**
+         * 6. LOOP ANIMASI REAL-TIME
+         */
+        const clock = new THREE.Clock();
+
+        function animateLoop(timestamp, frame) {
+            const rawDelta = clock.getDelta();
+            const elapsed = clock.getElapsedTime();
+            const dt = state.isPlaying ? Math.min(rawDelta, 0.05) * state.speed : 0;
+
+            if (frame && state.arType === 'webxr') {
+                const referenceSpace = renderer.xr.getReferenceSpace();
+                const session = renderer.xr.getSession();
+
+                if (!xrHitTestSourceRequested) {
+                    session.requestReferenceSpace('viewer').then((viewerSpace) => {
+                        session.requestHitTestSource({ space: viewerSpace }).then((source) => {
+                            xrHitTestSource = source;
+                        });
+                    });
+                    session.addEventListener('end', () => {
+                        xrHitTestSourceRequested = false;
+                        xrHitTestSource = null;
+                    });
+                    xrHitTestSourceRequested = true;
+                }
+
+                if (xrHitTestSource) {
+                    const hitTestResults = frame.getHitTestResults(xrHitTestSource);
+                    if (hitTestResults.length > 0) {
+                        const hit = hitTestResults[0];
+                        xrReticle.visible = true;
+                        xrReticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
+                    } else {
+                        xrReticle.visible = false;
+                    }
+                }
+            }
+
+            if (state.isTransitioningCam && !state.isARMode) {
+                camera.position.lerp(state.targetCamPos, 0.06);
+                controls.target.lerp(state.targetLookAt, 0.06);
+                if (camera.position.distanceTo(state.targetCamPos) < 0.05) {
+                    state.isTransitioningCam = false;
+                }
+            }
+
+            if (dt > 0) {
+                // 1. Ombak Laut Real-Time & Buih Pantai
+                if (oceanMesh && oceanBasePositions) {
+                    const pos = oceanMesh.geometry.attributes.position;
+                    for (let i = 0; i < pos.count; i++) {
+                        const bx = oceanBasePositions[i * 3];
+                        const bz = oceanBasePositions[i * 3 + 2];
+                        const wave1 = Math.sin(bx * 2.2 - elapsed * 2.4) * 0.032;
+                        const wave2 = Math.cos(bz * 1.8 + elapsed * 1.9) * 0.022;
+                        pos.setY(i, wave1 + wave2);
+                    }
+                    pos.needsUpdate = true;
+                    oceanMesh.geometry.computeVertexNormals();
+                }
+
+                if (shoreFoamMesh) {
+                    const surf = Math.sin(elapsed * 2.4);
+                    shoreFoamMesh.position.x = 0.88 + surf * 0.09;
+                    shoreFoamMesh.material.opacity = 0.42 + (surf * 0.5 + 0.5) * 0.4;
+                }
+
+                if (riverTexture) {
+                    riverTexture.offset.x -= dt * 0.65;
+                }
+
+                // 2. Denyut Matahari & Angin Pepohonan
+                if (sunGroup) {
+                    const pulse = 1 + Math.sin(elapsed * 2.2) * 0.04;
+                    sunGroup.children[1].scale.setScalar(pulse);
+                    sunGroup.children[2].scale.setScalar(1 + Math.cos(elapsed * 1.8) * 0.05);
+                }
+
+                trees.forEach(tree => {
+                    tree.rotation.z = Math.sin(elapsed * 1.6 + tree.userData.phase) * 0.025;
+                });
+
+                // 3. Pergerakan Awan
+                clouds.forEach(cloud => {
+                    const u = cloud.userData;
+                    cloud.position.x = u.baseX + Math.sin(elapsed * u.speed + u.phase) * u.range;
+                });
+
+                // 4. Evaporasi
+                const isEvapFocus = state.currentStage === 'all' || state.currentStage === 'evaporation';
+                evapParticles.forEach(p => {
+                    p.visible = isEvapFocus;
+                    if (!isEvapFocus) return;
+
+                    p.position.y += p.userData.speedY * dt;
+                    p.position.x += Math.sin(elapsed * 2.1 + p.userData.wobblePhase) * 0.004 * state.speed;
+
+                    const normH = (p.position.y - p.userData.minY) / (p.userData.maxY - p.userData.minY);
+                    const scale = 0.28 + normH * 0.45;
+                    p.scale.set(scale, scale, 1);
+                    p.material.opacity = Math.sin(Math.min(1, Math.max(0, normH)) * Math.PI) * 0.72;
+
+                    if (p.position.y > p.userData.maxY) {
+                        p.position.y = p.userData.minY;
+                        p.position.x = 1.3 + Math.random() * 4.3;
+                    }
+                });
+
+                // 5. Transpirasi
+                const isTranspFocus = state.currentStage === 'all' || state.currentStage === 'transpiration';
+                transpParticles.forEach(p => {
+                    p.visible = isTranspFocus;
+                    if (!isTranspFocus) return;
+
+                    p.position.y += p.userData.speedY * dt;
+                    p.position.x = p.userData.baseX + Math.sin(elapsed * 2.4 + p.userData.wobblePhase) * 0.25;
+
+                    const normH = (p.position.y - p.userData.minY) / (p.userData.maxY - p.userData.minY);
+                    const scale = 0.22 + normH * 0.38;
+                    p.scale.set(scale, scale, 1);
+                    p.material.opacity = Math.sin(Math.min(1, Math.max(0, normH)) * Math.PI) * 0.65;
+
+                    if (p.position.y > p.userData.maxY) {
+                        p.position.y = p.userData.minY;
+                    }
+                });
+
+                // 6. Presipitasi & Cipratan Air
+                const isPrecipFocus = state.currentStage === 'all' || state.currentStage === 'precipitation';
+                rainParticles.forEach((drop, idx) => {
+                    drop.visible = isPrecipFocus;
+                    if (!isPrecipFocus) return;
+
+                    drop.position.y -= drop.userData.speedY * dt;
+                    drop.position.x += 0.45 * dt;
+
+                    if (drop.position.y < drop.userData.groundY + 0.1) {
+                        if (idx < splashParticles.length) {
+                            const sp = splashParticles[idx];
+                            sp.position.set(drop.position.x, drop.userData.groundY + 0.04, drop.position.z);
+                            sp.userData.life = sp.userData.maxLife;
+                        }
+                        drop.position.y = 5.9 + Math.random() * 0.4;
+                        drop.position.x = drop.userData.rx;
+                    }
+                });
+
+                splashParticles.forEach(sp => {
+                    if (!isPrecipFocus || sp.userData.life <= 0) {
+                        sp.visible = false;
+                        return;
+                    }
+                    sp.visible = true;
+                    sp.userData.life -= dt;
+                    const progress = 1 - (sp.userData.life / sp.userData.maxLife);
+                    const sc = 0.5 + progress * 2.2;
+                    sp.scale.set(sc, sc, 1);
+                    sp.material.opacity = (1 - progress) * 0.85;
+                });
+
+                // 7. Koleksi (Sungai & Air Tanah)
+                const isCollFocus = state.currentStage === 'all' || state.currentStage === 'collection';
+                riverParticles.forEach(p => {
+                    p.visible = isCollFocus;
+                    if (!isCollFocus) return;
+
+                    p.userData.t += p.userData.speed * dt;
+                    if (p.userData.t > 1) p.userData.t = 0;
+
+                    const pt = riverCurve.getPointAt(p.userData.t);
+                    p.position.set(pt.x, pt.y + 0.08, pt.z + p.userData.offsetZ);
+                });
+
+                groundwaterParticles.forEach(gw => {
+                    gw.visible = isCollFocus;
+                    if (!isCollFocus) return;
+
+                    gw.userData.progress += gw.userData.speed * dt;
+                    if (gw.userData.progress > 1) gw.userData.progress = 0;
+
+                    const pr = gw.userData.progress;
+                    const gx = -3.8 + pr * 4.8;
+                    const gy = (1.6 - pr * 1.75) + Math.sin(pr * Math.PI * 3) * 0.06;
+                    gw.position.set(gx, gy, 4.53);
+                });
+            }
+
+            controls.update();
+            update3DLabelsPosition();
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function () {
+            initThreeJS();
+            renderer.setAnimationLoop(animateLoop);
+        };
+    </script>
+</body>
+</html>
