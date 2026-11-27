@@ -19,6 +19,9 @@
     <!-- QRCode.js untuk Generate QR Code WebAR -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
+    <!-- Tone.js untuk Efek Suara Prosedural Siklus Air -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
     <!-- Three.js r128 & Addons (OrbitControls & RoomEnvironment) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -29,7 +32,7 @@
             font-family: 'Inter', sans-serif;
             margin: 0;
             overflow: hidden;
-            background: radial-gradient(circle at 75% 15%, #facc15 0%, #0284c7 35%, #0369a1 70%, #0c4a6e 100%);
+            background: linear-gradient(180deg, #0c4a6e 0%, #0369a1 50%, #0284c7 100%);
             user-select: none;
             -webkit-user-select: none;
         }
@@ -163,7 +166,7 @@
                 </span>
             </div>
 
-            <!-- Input URL kustom (jika dibuka dari file lokal, pengguna bisa menempel URL hosting HTTPS) -->
+            <!-- Input URL kustom -->
             <div class="mb-3">
                 <label id="qr-url-label" class="block text-[11px] font-semibold text-slate-600 mb-1">Tautan WebAR (HTTPS):</label>
                 <div class="flex gap-1.5">
@@ -194,7 +197,7 @@
     <!-- UI OVERLAY (HUD) -->
     <div id="ui-overlay" class="fixed inset-0 z-20 pointer-events-none flex flex-col justify-between p-2.5 sm:p-4">
 
-        <!-- AREA ATAS: Header + Kartu Ikhtisar (Ditempatkan di atas agar ruang tengah 100% bebas untuk diorama) -->
+        <!-- AREA ATAS: Header + Kartu Ikhtisar (Ditempatkan di atas agar ruang tengah bebas untuk diorama) -->
         <div class="flex flex-col gap-2 pointer-events-none">
             <!-- HEADER ATAS: Judul & Kontrol Utama -->
             <header class="flex flex-wrap items-start justify-between gap-2 pointer-events-auto">
@@ -228,6 +231,12 @@
                     <button id="btn-qr-open" class="glass-btn px-2.5 py-2 rounded-xl text-xs flex items-center gap-1.5 font-semibold text-sky-700" title="Buat & Unduh QR Code WebAR">
                         <i class="fa-solid fa-qrcode text-sky-600"></i>
                         <span id="btn-qr-text" class="hidden sm:inline">QR Code</span>
+                    </button>
+
+                    <!-- Toggle Efek Suara (Audio) -->
+                    <button id="btn-sound" class="glass-btn px-2.5 py-2 rounded-xl text-xs flex items-center gap-1.5 font-semibold" title="Aktifkan/Matikan Efek Suara">
+                        <i id="icon-sound" class="fa-solid fa-volume-xmark text-slate-500"></i>
+                        <span id="btn-sound-text" class="hidden md:inline">Suara</span>
                     </button>
 
                     <!-- Toggle Label 3D -->
@@ -323,7 +332,7 @@
                 </button>
                 <button data-stage="collection" class="stage-btn glass-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5">
                     <span class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-xs flex items-center justify-center font-bold">5</span>
-                    <span id="stage-label-collection">Koleksi & Aliran</span>
+                    <span id="stage-label-collection">Runoff & Infiltration</span>
                 </button>
             </div>
         </footer>
@@ -347,7 +356,6 @@
                 resetCam: "Reset Sudut",
                 arCamStatus: "Kamera AR Aktif",
                 arScaleLabel: "Skala Diorama",
-                arGestureHint: "Geser 1 jari untuk memutar, cubit 2 jari untuk memperbesar/memperkecil.",
                 toastWebXRStart: "Sesi WebXR AR aktif! Arahkan kamera ke permukaan datar.",
                 toastCamStart: "Simulasi Kamera AR aktif! Gerakkan perangkat atau geser layar.",
                 toastCamDenied: "Izin kamera ditolak atau tidak tersedia. Mode AR Virtual aktif.",
@@ -356,19 +364,23 @@
                 qrTitle: "QR Code WebAR",
                 qrSub: "Scan dengan kamera HP untuk buka AR",
                 qrUrlLabel: "Tautan WebAR (HTTPS):",
-                qrLocalWarn: "Kamu sedang membuka file lokal. Tempel tautan HTTPS (Netlify/GitHub Pages) di atas agar QR bisa di-scan di HP.",
+                qrLocalWarn: "Kamu sedang membuka file lokal. QR Code otomatis diarahkan ke tautan GitHub Pages milikmu.",
                 qrDownload: "Unduh PNG",
                 qrCopy: "Salin Link",
                 toastQrUpdated: "QR Code berhasil diperbarui!",
                 toastQrCopied: "Tautan WebAR berhasil disalin!",
                 toastQrDownloaded: "Gambar QR Code berhasil diunduh!",
+                soundBtnOn: "Suara",
+                soundBtnOff: "Suara",
+                toastSoundOn: "Efek suara alam siklus air aktif!",
+                toastSoundOff: "Efek suara dimatikan.",
                 labels3D: {
                     sun: "Energi Matahari",
                     evap: "1. Evaporasi (Penguapan)",
                     transp: "2. Transpirasi (Tumbuhan)",
                     cond: "3. Kondensasi (Awan)",
                     precip: "4. Presipitasi (Hujan)",
-                    coll: "5. Koleksi & Aliran Sungai"
+                    coll: "5. Runoff & Infiltration"
                 },
                 stages: {
                     all: {
@@ -407,10 +419,10 @@
                         fact: "Pegunungan memaksa udara lembap naik dan mendingin secara cepat (hujan orografis), sehingga lereng gunung sering menerima curah hujan tinggi."
                     },
                     collection: {
-                        nav: "Koleksi & Aliran",
+                        nav: "Runoff & Infiltration",
                         badge: "Tahap 5 • Aliran & Infiltrasi",
-                        title: "Koleksi, Runoff & Air Tanah",
-                        desc: "Air hujan mengalir di permukaan tanah (surface runoff) membentuk aliran sungai dari pegunungan menuju laut, sementara sebagian meresap ke dalam tanah (infiltrasi) mengisi akuifer.",
+                        title: "Runoff & Infiltration (Air Tanah)",
+                        desc: "Air hujan mengalir di permukaan tanah (surface runoff) membentuk aliran sungai dari pegunungan menuju laut, sementara sebagian meresap ke dalam tanah (infiltration) mengisi akuifer.",
                         fact: "Air tanah yang meresap ke lapisan batuan dalam dapat tersimpan selama ratusan hingga ribuan tahun sebelum kembali ke mata air atau laut."
                     }
                 }
@@ -428,7 +440,6 @@
                 resetCam: "Reset View",
                 arCamStatus: "AR Camera Active",
                 arScaleLabel: "Diorama Scale",
-                arGestureHint: "Drag 1 finger to rotate, pinch 2 fingers to zoom in/out.",
                 toastWebXRStart: "WebXR AR session active! Point camera at a flat surface.",
                 toastCamStart: "AR Camera overlay active! Move device or drag screen.",
                 toastCamDenied: "Camera permission denied or unavailable. Virtual AR active.",
@@ -437,19 +448,23 @@
                 qrTitle: "WebAR QR Code",
                 qrSub: "Scan with phone camera to launch AR",
                 qrUrlLabel: "WebAR Link (HTTPS):",
-                qrLocalWarn: "You are viewing a local file. Paste your hosted HTTPS link (Netlify/GitHub Pages) above so phones can scan it.",
+                qrLocalWarn: "You are viewing a local file. The QR Code automatically points to your GitHub Pages link.",
                 qrDownload: "Download PNG",
                 qrCopy: "Copy Link",
                 toastQrUpdated: "QR Code updated successfully!",
                 toastQrCopied: "WebAR link copied to clipboard!",
                 toastQrDownloaded: "QR Code image downloaded!",
+                soundBtnOn: "Sound",
+                soundBtnOff: "Sound",
+                toastSoundOn: "Water cycle ambient sound effects active!",
+                toastSoundOff: "Sound effects muted.",
                 labels3D: {
                     sun: "Solar Energy",
                     evap: "1. Evaporation",
                     transp: "2. Transpiration",
                     cond: "3. Condensation",
                     precip: "4. Precipitation",
-                    coll: "5. Collection & Runoff"
+                    coll: "5. Runoff & Infiltration"
                 },
                 stages: {
                     all: {
@@ -488,18 +503,15 @@
                         fact: "Mountains force moist air upward to cool rapidly (orographic lift), causing mountain slopes to receive abundant precipitation."
                     },
                     collection: {
-                        nav: "Collection & Runoff",
+                        nav: "Runoff & Infiltration",
                         badge: "Stage 5 • Runoff & Infiltration",
-                        title: "Collection, Runoff & Groundwater",
+                        title: "Runoff & Infiltration (Groundwater)",
                         desc: "Rainwater flows across the land as surface runoff into rivers returning to the ocean, while part of it infiltrates into the soil to replenish groundwater aquifers.",
                         fact: "Groundwater infiltrating deep rock layers can remain stored for centuries before discharging back into springs or the ocean."
                     }
                 }
             }
         };
-
-        I18N.id.qrLocalWarn = "Kamu sedang membuka file lokal. QR Code otomatis diarahkan ke tautan GitHub Pages milikmu.";
-        I18N.en.qrLocalWarn = "You are viewing a local file. The QR Code automatically points to your GitHub Pages link.";
 
         /**
          * KONFIGURASI KAMERA & TEMA TIAP TAHAPAN
@@ -546,11 +558,12 @@
             isPlaying: true,
             speed: 1.0,
             showLabels: true,
+            isSoundOn: false,
             isARMode: false,
             arType: 'none',
             cameraStream: null,
-            targetCamPos: new THREE.Vector3(0, 10.5, 17.5),
-            targetLookAt: new THREE.Vector3(0, 2.3, 0),
+            targetCamPos: null,
+            targetLookAt: null,
             isTransitioningCam: false
         };
 
@@ -571,15 +584,183 @@
         let labels3D = [];
         let sunLight;
         let xrReticle, xrHitTestSource = null, xrHitTestSourceRequested = false;
+        let clock;
+
+        /**
+         * MESIN EFEK SUARA ALAM PROSEDURAL (TONE.JS)
+         */
+        const soundEngine = {
+            initialized: false,
+            masterVol: null,
+            oceanNoise: null,
+            oceanFilter: null,
+            oceanLfo: null,
+            rainNoise: null,
+            rainFilter: null,
+            riverNoise: null,
+            riverFilter: null,
+            windNoise: null,
+            windFilter: null,
+            evapSynth: null,
+            thunderSynth: null,
+            chimeInterval: null,
+
+            async init() {
+                if (this.initialized || typeof Tone === 'undefined') return;
+                await Tone.start();
+
+                this.masterVol = new Tone.Volume(-6).toDestination();
+
+                // 1. Suara Ombak Laut (Pink Noise + Lowpass LFO berirama ombak)
+                this.oceanFilter = new Tone.Filter({ type: "lowpass", frequency: 320, Q: 1.2 }).connect(this.masterVol);
+                this.oceanNoise = new Tone.Noise("pink").connect(this.oceanFilter);
+                this.oceanNoise.volume.value = -14;
+                this.oceanLfo = new Tone.LFO({ frequency: 0.16, min: 140, max: 520 }).connect(this.oceanFilter.frequency);
+
+                // 2. Suara Hujan / Presipitasi (White Noise bertekstur rintik air)
+                this.rainFilter = new Tone.Filter({ type: "bandpass", frequency: 1900, Q: 0.7 }).connect(this.masterVol);
+                this.rainNoise = new Tone.Noise("white").connect(this.rainFilter);
+                this.rainNoise.volume.value = -16;
+
+                // 3. Suara Aliran Sungai / Runoff (Brown Noise gemericik)
+                this.riverFilter = new Tone.Filter({ type: "bandpass", frequency: 680, Q: 1.4 }).connect(this.masterVol);
+                this.riverNoise = new Tone.Noise("brown").connect(this.riverFilter);
+                this.riverNoise.volume.value = -11;
+
+                // 4. Suara Angin Dedaunan / Transpirasi & Kondensasi
+                this.windFilter = new Tone.Filter({ type: "bandpass", frequency: 450, Q: 2.2 }).connect(this.masterVol);
+                this.windNoise = new Tone.Noise("pink").connect(this.windFilter);
+                this.windNoise.volume.value = -18;
+
+                // 5. Synth Halus untuk Uap Naik (Evaporasi) & Guntur Lembut (Presipitasi)
+                this.evapSynth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "sine" },
+                    envelope: { attack: 0.4, decay: 0.5, sustain: 0.1, release: 1.2 }
+                }).connect(this.masterVol);
+                this.evapSynth.volume.value = -22;
+
+                this.thunderSynth = new Tone.MembraneSynth({
+                    pitchDecay: 0.18,
+                    octaves: 3,
+                    envelope: { attack: 0.15, decay: 1.4, sustain: 0, release: 1.2 }
+                }).connect(this.masterVol);
+                this.thunderSynth.volume.value = -18;
+
+                this.initialized = true;
+            },
+
+            startAll() {
+                if (!this.initialized) return;
+                this.oceanNoise.start();
+                this.oceanLfo.start();
+                this.rainNoise.start();
+                this.riverNoise.start();
+                this.windNoise.start();
+                this.updateMix(state.currentStage, state.isPlaying);
+
+                if (this.chimeInterval) clearInterval(this.chimeInterval);
+                this.chimeInterval = setInterval(() => {
+                    if (!state.isSoundOn || !state.isPlaying || !this.initialized) return;
+                    const st = state.currentStage;
+                    if (st === 'evaporation' || st === 'transpiration' || st === 'all') {
+                        const notes = st === 'transpiration' ? ["E5", "G5", "B5"] : ["C5", "E5", "G5", "B5"];
+                        const note = notes[Math.floor(Math.random() * notes.length)];
+                        this.evapSynth.triggerAttackRelease(note, "8n");
+                    }
+                    if ((st === 'precipitation' || st === 'condensation') && Math.random() > 0.55) {
+                        this.thunderSynth.triggerAttackRelease("C1", "1n");
+                    }
+                }, 2600);
+            },
+
+            stopAll() {
+                if (!this.initialized) return;
+                try {
+                    this.oceanNoise.stop();
+                    this.oceanLfo.stop();
+                    this.rainNoise.stop();
+                    this.riverNoise.stop();
+                    this.windNoise.stop();
+                } catch (e) {}
+                if (this.chimeInterval) {
+                    clearInterval(this.chimeInterval);
+                    this.chimeInterval = null;
+                }
+            },
+
+            updateMix(stageKey, isPlaying) {
+                if (!this.initialized || !state.isSoundOn) return;
+                if (!isPlaying) {
+                    this.masterVol.volume.rampTo(-60, 0.3);
+                    return;
+                }
+                this.masterVol.volume.rampTo(-6, 0.3);
+
+                // Atur keseimbangan volume tiap lapisan suara sesuai tahap aktif
+                const mix = {
+                    all:           { ocean: -15, rain: -18, river: -14, wind: -20 },
+                    evaporation:   { ocean: -10, rain: -45, river: -35, wind: -22 },
+                    transpiration: { ocean: -35, rain: -45, river: -28, wind: -11 },
+                    condensation:  { ocean: -28, rain: -28, river: -35, wind: -10 },
+                    precipitation: { ocean: -28, rain: -9,  river: -20, wind: -16 },
+                    collection:    { ocean: -18, rain: -32, river: -8,  wind: -26 }
+                }[stageKey] || { ocean: -15, rain: -18, river: -14, wind: -20 };
+
+                this.oceanNoise.volume.rampTo(mix.ocean, 0.4);
+                this.rainNoise.volume.rampTo(mix.rain, 0.4);
+                this.riverNoise.volume.rampTo(mix.river, 0.4);
+                this.windNoise.volume.rampTo(mix.wind, 0.4);
+            },
+
+            playClickTone(stageKey) {
+                if (!this.initialized || !state.isSoundOn) return;
+                const pitchMap = {
+                    all: "G4",
+                    evaporation: "C5",
+                    transpiration: "D5",
+                    condensation: "E5",
+                    precipitation: "A4",
+                    collection: "F4"
+                };
+                this.evapSynth.triggerAttackRelease(pitchMap[stageKey] || "C5", "16n");
+            }
+        };
+
+        function loadScriptFallback(src) {
+            return new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = src;
+                s.onload = resolve;
+                s.onerror = reject;
+                document.head.appendChild(s);
+            });
+        }
+
+        async function ensureLibrariesLoaded() {
+            if (typeof window.THREE === 'undefined') {
+                await loadScriptFallback('https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js');
+            }
+            if (typeof THREE.OrbitControls === 'undefined') {
+                await loadScriptFallback('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js');
+            }
+            if (typeof THREE.RoomEnvironment === 'undefined') {
+                await loadScriptFallback('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js');
+            }
+        }
 
         /**
          * 1. SETUP SCENE, CAMERA, IBL ENVIRONMENT, TONE MAPPING & SOFT SHADOWS
          */
         function initThreeJS() {
+            state.targetCamPos = new THREE.Vector3(0, 12.8, 22.8);
+            state.targetLookAt = new THREE.Vector3(0, 3.8, 0);
+            clock = new THREE.Clock();
+
             const container = document.getElementById('canvas-container');
 
             scene = new THREE.Scene();
-            scene.fog = new THREE.FogExp2(0x0284c7, 0.011);
+            scene.background = new THREE.Color(0x0369a1);
+            scene.fog = new THREE.FogExp2(0x0369a1, 0.011);
 
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
             camera.position.set(0, 12.8, 22.8);
@@ -681,6 +862,37 @@
             grad.addColorStop(1, 'rgba(224, 242, 254, 0.0)');
             ctx.fillStyle = grad;
             ctx.fillRect(0, 0, 64, 64);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createSunGlowTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(128, 128, 24, 128, 128, 128);
+            grad.addColorStop(0, 'rgba(254, 240, 138, 0.95)');
+            grad.addColorStop(0.32, 'rgba(250, 204, 21, 0.65)');
+            grad.addColorStop(0.65, 'rgba(245, 158, 11, 0.25)');
+            grad.addColorStop(1, 'rgba(245, 158, 11, 0.0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 256, 256);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createSunSurfaceTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+
+            const baseGrad = ctx.createRadialGradient(128, 128, 12, 128, 128, 128);
+            baseGrad.addColorStop(0, '#fef9c3');
+            baseGrad.addColorStop(0.55, '#fde047');
+            baseGrad.addColorStop(1, '#f59e0b');
+            ctx.fillStyle = baseGrad;
+            ctx.fillRect(0, 0, 256, 256);
+
             return new THREE.CanvasTexture(canvas);
         }
 
@@ -1113,43 +1325,51 @@
             createPineTree(-2.9, 3.1, 1.05);
 
             // Bebatuan kecil alami
-            const rockMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.88, flatShading: true, envMapIntensity: 0.2 });
-            [
-                [-2.4, 0.6, 0.28], [-1.9, -0.75, 0.22], [-0.5, 1.0, 0.18],
-                [0.2, -0.5, 0.16], [-3.2, 2.2, 0.34]
-            ].forEach(([rx, rz, rs]) => {
-                const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(rs, 0), rockMat);
-                rock.position.set(rx, getTerrainHeight(rx, rz), rz);
-                rock.rotation.set(Math.random(), Math.random(), Math.random());
-                rock.castShadow = true;
-                rock.receiveShadow = true;
-                dioramaGroup.add(rock);
-            });
-
-            // --- F. MATAHARI BERSINAR DENGAN CORONA ATMOSFER CERAH ---
+            // --- F. MATAHARI BERSINAR DENGAN CAHAYA AURA & SINAR GARIS MELINGKAR ---
             sunGroup = new THREE.Group();
+            const sunSurfaceTex = createSunSurfaceTexture();
             const sunCore = new THREE.Mesh(
-                new THREE.SphereGeometry(0.95, 28, 28),
-                new THREE.MeshBasicMaterial({ color: 0xfef08a })
+                new THREE.SphereGeometry(1.0, 32, 32),
+                new THREE.MeshBasicMaterial({ map: sunSurfaceTex })
             );
             sunGroup.add(sunCore);
 
-            const sunInnerHalo = new THREE.Mesh(
-                new THREE.SphereGeometry(1.32, 28, 28),
-                new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.62 })
-            );
-            sunGroup.add(sunInnerHalo);
+            // Cincin sinar garis-garis persegi panjang terpisah di sekeliling matahari
+            const raysGroup = new THREE.Group();
+            const rayMat = new THREE.MeshBasicMaterial({
+                color: 0xfef08a,
+                transparent: true,
+                opacity: 0.98
+            });
+            const rayCount = 10;
+            for (let i = 0; i < rayCount; i++) {
+                const angle = (i / rayCount) * Math.PI * 2;
+                const rayGeo = new THREE.BoxGeometry(0.14, 0.46, 0.08);
+                const rayMesh = new THREE.Mesh(rayGeo, rayMat);
+                const dist = 1.48;
+                rayMesh.position.set(Math.cos(angle) * dist, Math.sin(angle) * dist, 0);
+                rayMesh.rotation.z = angle - Math.PI / 2;
+                raysGroup.add(rayMesh);
+            }
+            sunGroup.add(raysGroup);
 
-            const sunOuterHalo = new THREE.Mesh(
-                new THREE.SphereGeometry(1.9, 28, 28),
-                new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.28 })
+            // Aura cahaya bersinar di sekitar matahari
+            const sunGlowTex = createSunGlowTexture();
+            const sunGlowSprite = new THREE.Sprite(
+                new THREE.SpriteMaterial({
+                    map: sunGlowTex,
+                    transparent: true,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                })
             );
-            sunGroup.add(sunOuterHalo);
+            sunGlowSprite.scale.set(5.4, 5.4, 1);
+            sunGroup.add(sunGlowSprite);
 
             sunGroup.position.set(4.5, 7.4, -2.5);
             dioramaGroup.add(sunGroup);
 
-            // --- G. AWAN KONDENSASI PUTIH KAPAS CERAH & AWAN MENDUNG GELAP ---
+            // --- G. AWAN KONDENSASI PUTIH KAPAS CERAH & AWAN MENDUNG DINAMIS ---
             const createVolumetricCloud = (startX, y, z, scale, isRainCloud) => {
                 const cloud = new THREE.Group();
                 const topColor = isRainCloud ? 0x334155 : 0xffffff;
@@ -1200,7 +1420,10 @@
                     baseX: startX,
                     speed: 0.2 + Math.random() * 0.12,
                     range: 2.3,
-                    phase: Math.random() * Math.PI * 2
+                    phase: Math.random() * Math.PI * 2,
+                    isRainCloud: isRainCloud,
+                    topMat: topMat,
+                    bottomMat: bottomMat
                 };
                 dioramaGroup.add(cloud);
                 clouds.push(cloud);
@@ -1312,7 +1535,7 @@
                 }
             }
 
-            // 4. Partikel Koleksi (Aliran Sungai & Air Tanah)
+            // 4. Partikel Runoff & Infiltration (Aliran Sungai & Air Tanah)
             const riverDropGeo = new THREE.SphereGeometry(0.075, 8, 8);
             const riverDropMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
             for (let i = 0; i < 32; i++) {
@@ -1421,6 +1644,7 @@
             document.getElementById('mode-subtitle').textContent = state.isARMode ? t.modeSubtitleAR : t.modeSubtitle3D;
             document.getElementById('btn-ar-text').textContent = state.isARMode ? t.exitAR : t.enterAR;
             document.getElementById('btn-labels-text').textContent = t.labelsBtn;
+            document.getElementById('btn-sound-text').textContent = state.isSoundOn ? t.soundBtnOn : t.soundBtnOff;
             document.getElementById('btn-play-text').textContent = state.isPlaying ? t.pauseBtn : t.playBtn;
             document.getElementById('speed-label').textContent = t.speedLabel;
             document.getElementById('btn-reset-text').textContent = t.resetCam;
@@ -1470,6 +1694,8 @@
             });
 
             updateStageInfoCard(stageKey);
+            soundEngine.updateMix(stageKey, state.isPlaying);
+            soundEngine.playClickTone(stageKey);
 
             if (!state.isARMode) {
                 state.targetCamPos.set(cfg.camPos.x, cfg.camPos.y, cfg.camPos.z);
@@ -1508,8 +1734,9 @@
                     state.cameraStream = null;
                 }
                 videoEl.style.display = 'none';
-                document.body.style.background = 'radial-gradient(circle at 75% 15%, #facc15 0%, #0284c7 35%, #0369a1 70%, #0c4a6e 100%)';
-                scene.fog = new THREE.FogExp2(0x0284c7, 0.011);
+                document.body.style.background = 'linear-gradient(180deg, #0c4a6e 0%, #0369a1 50%, #0284c7 100%)';
+                scene.background = new THREE.Color(0x0369a1);
+                scene.fog = new THREE.FogExp2(0x0369a1, 0.011);
                 shadowCatcherPlane.visible = false;
 
                 state.isARMode = false;
@@ -1543,6 +1770,7 @@
 
                         state.isARMode = true;
                         state.arType = 'webxr';
+                        scene.background = null;
                         scene.fog = null;
                         shadowCatcherPlane.visible = true;
                         dioramaGroup.scale.setScalar(0.14);
@@ -1559,7 +1787,8 @@
                             const currT = I18N[state.lang];
                             state.isARMode = false;
                             state.arType = 'none';
-                            scene.fog = new THREE.FogExp2(0x0284c7, 0.011);
+                            scene.background = new THREE.Color(0x0369a1);
+                            scene.fog = new THREE.FogExp2(0x0369a1, 0.011);
                             shadowCatcherPlane.visible = false;
                             dioramaGroup.scale.setScalar(1);
                             dioramaGroup.position.set(0, 0, 0);
@@ -1583,6 +1812,7 @@
                 videoEl.srcObject = stream;
                 videoEl.style.display = 'block';
                 document.body.style.background = 'transparent';
+                scene.background = null;
                 scene.fog = null;
                 shadowCatcherPlane.visible = true;
 
@@ -1600,7 +1830,8 @@
                 arPanel.classList.remove('hidden');
                 showToast(t.toastCamStart);
             } catch (err) {
-                document.body.style.background = 'radial-gradient(circle at center, #0284c7 0%, #0c4a6e 100%)';
+                document.body.style.background = 'linear-gradient(180deg, #0c4a6e 0%, #0369a1 50%, #0284c7 100%)';
+                scene.background = new THREE.Color(0x0369a1);
                 scene.fog = null;
                 shadowCatcherPlane.visible = true;
                 state.isARMode = true;
@@ -1639,6 +1870,27 @@
                 e.currentTarget.classList.toggle('active', state.showLabels);
             });
 
+            document.getElementById('btn-sound').addEventListener('click', async (e) => {
+                const btn = e.currentTarget;
+                const icon = document.getElementById('icon-sound');
+                const t = I18N[state.lang];
+
+                if (!state.isSoundOn) {
+                    await soundEngine.init();
+                    state.isSoundOn = true;
+                    soundEngine.startAll();
+                    btn.classList.add('active');
+                    icon.className = 'fa-solid fa-volume-high text-white';
+                    showToast(t.toastSoundOn);
+                } else {
+                    state.isSoundOn = false;
+                    soundEngine.stopAll();
+                    btn.classList.remove('active');
+                    icon.className = 'fa-solid fa-volume-xmark text-slate-500';
+                    showToast(t.toastSoundOff);
+                }
+            });
+
             document.getElementById('btn-play-pause').addEventListener('click', () => {
                 state.isPlaying = !state.isPlaying;
                 const icon = document.getElementById('icon-play-pause');
@@ -1646,6 +1898,7 @@
                 const t = I18N[state.lang];
                 icon.className = state.isPlaying ? 'fa-solid fa-pause text-sky-600' : 'fa-solid fa-play text-emerald-600';
                 text.textContent = state.isPlaying ? t.pauseBtn : t.playBtn;
+                soundEngine.updateMix(state.currentStage, state.isPlaying);
             });
 
             document.querySelectorAll('.speed-btn').forEach(btn => {
@@ -1690,14 +1943,16 @@
 
             const renderQRCode = (urlStr) => {
                 qrContainer.innerHTML = '';
-                new QRCode(qrContainer, {
-                    text: urlStr || 'https://salmamurodahputrisasa12-tech.github.io/Siklus-Air/Siklus%20Air%20AR.html',
-                    width: 185,
-                    height: 185,
-                    colorDark: '#0f172a',
-                    colorLight: '#ffffff',
-                    correctLevel: QRCode.CorrectLevel.H
-                });
+                if (typeof QRCode !== 'undefined') {
+                    new QRCode(qrContainer, {
+                        text: urlStr || 'https://salmamurodahputrisasa12-tech.github.io/Siklus-Air/Siklus%20Air%20AR.html',
+                        width: 185,
+                        height: 185,
+                        colorDark: '#0f172a',
+                        colorLight: '#ffffff',
+                        correctLevel: QRCode.CorrectLevel.H
+                    });
+                }
             };
 
             document.getElementById('btn-qr-open').addEventListener('click', () => {
@@ -1765,7 +2020,12 @@
         /**
          * 6. LOOP ANIMASI REAL-TIME
          */
-        const clock = new THREE.Clock();
+        const cWhiteTop = new THREE.Color(0xffffff);
+        const cWhiteBottom = new THREE.Color(0x7dd3fc);
+        const cCondTop = new THREE.Color(0x94a3b8);
+        const cCondBottom = new THREE.Color(0x475569);
+        const cRainTop = new THREE.Color(0x334155);
+        const cRainBottom = new THREE.Color(0x0f172a);
 
         function animateLoop(timestamp, frame) {
             const rawDelta = clock.getDelta();
@@ -1798,6 +2058,16 @@
                     } else {
                         xrReticle.visible = false;
                     }
+                }
+            }
+
+            // Rotasi Sinar Matahari & Denyut Cahaya Aura
+            if (sunGroup) {
+                sunGroup.children[1].lookAt(camera.position);
+                sunGroup.children[1].rotateZ(elapsed * 0.35);
+                if (sunGroup.children[2]) {
+                    const glowScale = 5.2 + Math.sin(elapsed * 2.5) * 0.45;
+                    sunGroup.children[2].scale.set(glowScale, glowScale, 1);
                 }
             }
 
@@ -1834,21 +2104,33 @@
                     riverTexture.offset.x -= dt * 0.65;
                 }
 
-                // 2. Denyut Matahari & Angin Pepohonan
-                if (sunGroup) {
-                    const pulse = 1 + Math.sin(elapsed * 2.2) * 0.04;
-                    sunGroup.children[1].scale.setScalar(pulse);
-                    sunGroup.children[2].scale.setScalar(1 + Math.cos(elapsed * 1.8) * 0.05);
-                }
-
+                // 2. Angin Pepohonan
                 trees.forEach(tree => {
                     tree.rotation.z = Math.sin(elapsed * 1.6 + tree.userData.phase) * 0.025;
                 });
 
-                // 3. Pergerakan Awan
+                // 3. Pergerakan & Transisi Warna Awan (Putih saat Evaporasi, Mulai Gelap saat Kondensasi, Mendung saat Presipitasi)
                 clouds.forEach(cloud => {
                     const u = cloud.userData;
                     cloud.position.x = u.baseX + Math.sin(elapsed * u.speed + u.phase) * u.range;
+
+                    let targetTop = cWhiteTop;
+                    let targetBottom = cWhiteBottom;
+
+                    if (state.currentStage === 'evaporation' || state.currentStage === 'transpiration') {
+                        targetTop = cWhiteTop;
+                        targetBottom = cWhiteBottom;
+                    } else if (state.currentStage === 'condensation') {
+                        const condPulse = 0.45 + 0.35 * Math.sin(elapsed * 1.8 + u.phase);
+                        targetTop = cWhiteTop.clone().lerp(cCondTop, condPulse);
+                        targetBottom = cWhiteBottom.clone().lerp(cCondBottom, condPulse);
+                    } else if (u.isRainCloud) {
+                        targetTop = cRainTop;
+                        targetBottom = cRainBottom;
+                    }
+
+                    u.topMat.color.lerp(targetTop, 0.08);
+                    u.bottomMat.color.lerp(targetBottom, 0.08);
                 });
 
                 // 4. Evaporasi
@@ -1923,7 +2205,7 @@
                     sp.material.opacity = (1 - progress) * 0.85;
                 });
 
-                // 7. Koleksi (Sungai & Air Tanah)
+                // 7. Runoff & Infiltration (Sungai & Air Tanah)
                 const isCollFocus = state.currentStage === 'all' || state.currentStage === 'collection';
                 riverParticles.forEach(p => {
                     p.visible = isCollFocus;
@@ -1955,15 +2237,21 @@
             renderer.render(scene, camera);
         }
 
-        window.onload = function () {
-            initThreeJS();
-            renderer.setAnimationLoop(animateLoop);
+        window.onload = async function () {
+            try {
+                await ensureLibrariesLoaded();
+                initThreeJS();
+                renderer.setAnimationLoop(animateLoop);
 
-            // Otomatis langsung masuk Mode AR saat dibuka di HP / hasil scan QR Code
-            const params = new URLSearchParams(window.location.search);
-            const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-            if ((params.get('ar') === '1' || isMobileDevice) && !state.isARMode) {
-                toggleARMode();
+                // Otomatis langsung masuk Mode AR saat dibuka di HP / hasil scan QR Code
+                const params = new URLSearchParams(window.location.search);
+                const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+                if ((params.get('ar') === '1' || isMobileDevice) && !state.isARMode) {
+                    toggleARMode();
+                }
+            } catch (err) {
+                console.error('Gagal memuat pustaka 3D:', err);
+                showToast('Gagal memuat pustaka 3D. Periksa koneksi internet Anda.');
             }
         };
     </script>
